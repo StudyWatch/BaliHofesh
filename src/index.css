@@ -1,0 +1,411 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-exam: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --gradient-institution: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  --background: 0 0% 100%;  /* לבן מלא */
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 84% 4.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.5rem;
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 240 5.3% 26.1%;
+  --sidebar-primary: 240 5.9% 10%;
+  --sidebar-primary-foreground: 0 0% 98%;
+  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-accent-foreground: 240 5.9% 10%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 217.2 10.6% 64.9%;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+  scroll-behavior: smooth;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom animations */
+@keyframes gradient-x {
+  0%, 100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 15s ease infinite;
+}
+
+/* Accessibility Button Styles */
+.accessibility-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accessibility-button:hover {
+  background: #1d4ed8;
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.accessibility-button:focus {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+/* ----- שדרוג תפריטים, מודלים ודיאלוגים ----- */
+
+/* כל המודלים/דיאלוגים/פופאפים */
+.dialog-overlay-light,
+.dialog-overlay,
+.modal-overlay,
+.popover-overlay,
+.menu-overlay,
+.menu-dropdown {
+  background-color: #fff !important;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+}
+
+/* תוכן דיאלוג/מודל/פופאפ */
+.dialog-content-improved,
+.dialog-content,
+.modal-content,
+.popover-content,
+.menu-content,
+.menu-list,
+.dropdown-content,
+.dropdown-menu {
+  background: #fff !important;
+  color: #1f2937 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 24px 48px -12px rgba(0,0,0,0.16) !important;
+  border: 2px solid #e5e7eb !important;
+  opacity: 1 !important;
+}
+
+/* כותרות בכל סוגי הדיאלוגים/פופאפים/תפריטים */
+.dialog-title, .modal-title, .popover-title, .menu-title {
+  color: #111827 !important;
+  font-weight: 700;
+  background: none !important;
+}
+
+/* אייקונים בתפריטים */
+.menu-item svg,
+.dropdown-item svg,
+.dialog-title svg,
+.menu-link svg {
+  color: #6366f1 !important;
+  opacity: 1 !important;
+}
+
+/* תפריט צד/נפתח */
+.sidebar,
+.menu {
+  background: #fff !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.10) !important;
+  border-radius: 16px !important;
+  border: 1px solid #e5e7eb !important;
+  color: #1f2937 !important;
+  opacity: 1 !important;
+}
+
+/* כפתורי תפריט בולטים */
+.menu-item,
+.menu-link,
+.dropdown-item {
+  background: none !important;
+  color: #1f2937 !important;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+.menu-item:hover,
+.menu-link:hover,
+.dropdown-item:hover {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+/* Highlight selection */
+.menu-item.active, .dropdown-item.active {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+/* Hero Section Title Contrast Fix - Much Better Visibility */
+.hero-title-improved {
+  background: #fff !important;
+  backdrop-filter: none !important;
+  padding: 1.5rem 2.5rem !important;
+  border-radius: 1.5rem !important;
+  border: 2px solid #e5e7eb !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.10) !important;
+  color: #1f2937 !important;
+}
+
+/* Accessibility Classes */
+body.accessibility-high-contrast {
+  filter: contrast(150%);
+}
+
+body.accessibility-black-white {
+  filter: grayscale(100%);
+}
+
+body.accessibility-highlight-links a {
+  background-color: yellow !important;
+  color: black !important;
+  font-weight: bold !important;
+}
+
+body.accessibility-readable-font {
+  font-family: 'Arial', sans-serif !important;
+}
+
+body.accessibility-pause-animations * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+body.accessibility-stop-flashing * {
+  animation: none !important;
+}
+
+body.accessibility-dark-mode {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+body.accessibility-dark-mode img,
+body.accessibility-dark-mode video {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Custom gradients */
+.bg-gradient-primary {
+  background: var(--gradient-primary);
+}
+
+.bg-gradient-exam {
+  background: var(--gradient-exam);
+}
+
+.bg-gradient-institution {
+  background: var(--gradient-institution);
+}
+
+/* Animation classes */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.6s ease-out;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+.delay-400 {
+  animation-delay: 400ms;
+}
+
+.delay-500 {
+  animation-delay: 500ms;
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Store gradient animations */
+@keyframes store-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-store-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: store-shimmer 2s ease-in-out infinite;
+}
+
+/* Semester tabs styling */
+.semester-tabs {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 12px;
+  padding: 8px;
+  margin-bottom: 24px;
+}
+
+.semester-tab {
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.semester-tab.active {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.semester-tab.active::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+}
+.assignments-widget {
+  width: 100%;
+  max-width: 400px;
+  min-width: 260px;
+  margin: 40px auto 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 6px 32px rgba(52, 100, 220, 0.10);
+  padding: 2.2rem 1.2rem 3.5rem 1.2rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.3rem;
+  /* חשוב: למרכז גם בעמוד עם flex/center */
+}
+
+@media (max-width: 700px) {
+  .assignments-widget {
+    max-width: 97vw;
+    padding: 1.4rem 0.4rem 2.7rem 0.4rem;
+  }
+}
+
+/* כפתור הפלוס צף במרכז התחתון של הכרטיס */
+.assignments-widget .add-btn-fab {
+  position: absolute;
+  bottom: 1.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2563eb;
+  color: #fff;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 2em;
+  box-shadow: 0 4px 20px rgba(52,100,220,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, transform 0.12s;
+  z-index: 3;
+}
+
+.assignments-widget .add-btn-fab:hover {
+  background: #174ea6;
+  transform: translateX(-50%) scale(1.09);
+}
+
+/* מרכז את כל התוכן */
+.assignments-widget .no-assignments,
+.assignments-widget h3,
+.assignments-widget p {
+  text-align: center;
+}
