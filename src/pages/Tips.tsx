@@ -59,7 +59,7 @@ const Tips = () => {
                 </span>
               </h1>
               <p className="text-xl text-gray-700 max-w-2xl mx-auto">
-                טיפים, טריקים ואסטרategיות להצלחה בלימודים ובבחינות
+                טיפים, טריקים ואסטרטגיות להצלחה בלימודים ובבחינות
               </p>
             </div>
           </div>

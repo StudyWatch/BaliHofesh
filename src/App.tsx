@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react"; 
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,9 +19,6 @@ import Universities from "./pages/Universities";
 import Tutors from "./pages/Tutors";
 import TutorProfile from "./pages/TutorProfile";
 import Tips from "./pages/Tips";
-import Store from "./pages/Store";
-import WishlistPage from "./pages/Wishlist";
-import ShoppingCartPage from "./pages/ShoppingCart";
 import Login from "./pages/Login";
 import MyCourses from "./pages/MyCourses";
 import Profile from "./pages/Profile";
@@ -29,8 +26,12 @@ import ResetPassword from "./pages/ResetPassword";
 import EmailVerificationPage from "./components/auth/EmailVerificationPage";
 import NotFound from "./pages/NotFound";
 import TutorDashboard from "@/components/tutors/TutorDashboard";
+import TermsOfUse from "./pages/TermsOfUse";
+import AuthCallbackHandler from "@/components/auth/AuthCallbackHandler";
 
-// ✅ נוסיף CartContext כדי למנוע שגיאת ייבוא
+// דף "בקרוב"
+import ComingSoon from "@/components/ComingSoon";
+
 export const CartContext = createContext({});
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<any[]>([]);
@@ -75,7 +76,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await supabase.auth.signOut();
       setSession(null);
       setUser(null);
-      window.location.pathname = "/"; // אפשר גם להשאיר ככה
+      window.location.pathname = "/";
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -147,7 +148,6 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-
 const TutorRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const [isTutor, setIsTutor] = useState<boolean | null>(null);
@@ -198,44 +198,52 @@ const App = () => (
           <Sonner />
           <NotificationOrchestrator />
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/courses" element={<Universities />} />
-              <Route path="/universities" element={<Universities />} />
-              <Route path="/institution/:id" element={<Institution />} />
-              <Route path="/course/:id" element={<Course />} />
-              <Route path="/tutors" element={<Tutors />} />
-              <Route path="/tutor/:id" element={<TutorProfile />} />
-              <Route path="/tips" element={<Tips />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/email-verification" element={<EmailVerificationPage />} />
-              <Route path="/my-courses" element={<MyCourses />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/tutor-dashboard" element={
-                <TutorRoute>
-                  <TutorDashboard />
-                </TutorRoute>
-              } />
-              <Route path="/store" element={
-                <StoreProviders>
-                  <Store />
-                </StoreProviders>
-              } />
-              <Route path="/wishlist" element={
-                <StoreProviders>
-                  <WishlistPage />
-                </StoreProviders>
-              } />
-              <Route path="/shopping-cart" element={
-                <StoreProviders>
-                  <ShoppingCartPage />
-                </StoreProviders>
-              } />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            <AccessibilityButton />
+            <div className="min-h-screen flex flex-col">
+              <main className="flex-1">
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/courses" element={<Universities />} />
+                  <Route path="/universities" element={<Universities />} />
+                  <Route path="/institution/:id" element={<Institution />} />
+                  <Route path="/course/:id" element={<Course />} />
+                  <Route path="/tutors" element={<Tutors />} />
+                  <Route path="/tutor/:id" element={<TutorProfile />} />
+                  <Route path="/tips" element={<Tips />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/email-verification" element={<EmailVerificationPage />} />
+                  <Route path="/my-courses" element={<MyCourses />} />
+                  <Route path="/profile" element={<Profile />} />
+                  {/* Callback לאימות Supabase */}
+                  <Route path="/auth/callback" element={<AuthCallbackHandler />} />
+                  <Route path="/tutor-dashboard" element={
+                    <TutorRoute>
+                      <TutorDashboard />
+                    </TutorRoute>
+                  } />
+                  {/* כאן מתחיל העדכון: */}
+                  <Route path="/store" element={<ComingSoon />} />
+                  <Route path="/wishlist" element={<ComingSoon title="רשימת המשאלות תיפתח בקרוב!" />} />
+                  <Route path="/shopping-cart" element={<ComingSoon title="העגלה תיפתח בקרוב!" />} />
+                  {/* דף תנאי שימוש */}
+                  <Route path="/terms" element={<TermsOfUse />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+              {/* פוטר קבוע עם קישור לתנאים */}
+              <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50">
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-blue-600 hover:text-blue-800"
+                >
+                  תנאי שימוש
+                </a>
+              </footer>
+              <AccessibilityButton />
+            </div>
           </BrowserRouter>
         </TooltipProvider>
       </LanguageProvider>

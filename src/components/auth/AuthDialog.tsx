@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import PasswordResetDialog from './PasswordResetDialog';
 import { createWelcomeNotification } from '@/components/notifications/createWelcomeNotification';
 import { supabase } from '@/integrations/supabase/client';
+import { Checkbox } from '@/components/ui/checkbox'; // ודא שקיים!
 
 // ---- מערך אווטארים מוכנים (DiceBear וכדומה) ----
 const AVATAR_CHOICES = [
@@ -29,9 +30,8 @@ const AVATAR_CHOICES = [
 interface AuthDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: 'login' | 'signup'; // ← ודא שזה קיים
+  defaultTab?: 'login' | 'signup';
 }
-
 
 const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
   const { dir } = useLanguage();
@@ -58,6 +58,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     phone: '',
     confirmPassword: ''
   });
+  const [agreedToTerms, setAgreedToTerms] = useState(false); // תנאי שימוש
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -182,6 +183,11 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
         setIsLoading(false);
         return;
       }
+      if (!agreedToTerms) {
+        toast.error("יש לאשר את תנאי השימוש כדי להירשם");
+        setIsLoading(false);
+        return;
+      }
 
       const redirectUrl = `${window.location.origin}/`;
       const { data, error } = await supabase.auth.signUp({
@@ -196,7 +202,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
         }
       });
 
-      // טיפול בשגיאה — כולל כל מקרה אפשרי
       if (error || !data?.user) {
         if (error) console.error("Supabase signup error:", error);
         if (
@@ -506,6 +511,23 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
                 <div className="text-xs text-gray-400 mt-1">
                   הטלפון שלך לעולם לא יופיע בפרופיל – אפשר לשתף אותו רק אם תבחר, במפגשי לימוד.
                 </div>
+              </div>
+              {/* ----- תנאי שימוש ----- */}
+              <div className="space-y-2 mt-2">
+                <label className="flex items-start gap-2 text-sm text-gray-700">
+                  <Checkbox
+                    id="agree"
+                    checked={agreedToTerms}
+                    onCheckedChange={val => setAgreedToTerms(Boolean(val))}
+                    required
+                  />
+                  <span>
+                    אני מאשר/ת שקראתי את <a href="/terms" target="_blank" className="underline text-blue-600">תנאי השימוש</a>
+                    <span className="block text-xs text-gray-500">
+                      השירות ניתן בגרסת ניסוי (פיילוט), ייתכנו תקלות או שגיאות. השימוש באחריותך בלבד ואין להעלות כל דרישה, טענה או תביעה כלפי בעלי הפלטפורמה בגין נזקים, טעויות או הפסקות שירות.
+                    </span>
+                  </span>
+                </label>
               </div>
               <Button type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white h-10">
                 {isLoading ? 'נרשם...' : 'הירשם'}
