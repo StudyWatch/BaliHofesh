@@ -77,19 +77,19 @@ const WelcomeBanner: React.FC = () => {
               <p className="text-gray-600 text-sm max-w-xs">{slides[current].desc}</p>
             </div>
 
-            {/* חצים מעודכנים */}
+            {/* חצים מימין ומשמאל (RTL) */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              <button
-                onClick={() => setCurrent((current - 1 + slides.length) % slides.length)}
-                className="text-3xl text-purple-400 hover:text-purple-700"
-                aria-label="הקודם"
-              >⟸</button>
-            </div>
-            <div className="absolute left-4 top-1/2 -translate-y-1/2">
               <button
                 onClick={() => setCurrent((current + 1) % slides.length)}
                 className="text-3xl text-purple-400 hover:text-purple-700"
                 aria-label="הבא"
+              >⟸</button>
+            </div>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2">
+              <button
+                onClick={() => setCurrent((current - 1 + slides.length) % slides.length)}
+                className="text-3xl text-purple-400 hover:text-purple-700"
+                aria-label="הקודם"
               >⟹</button>
             </div>
 
