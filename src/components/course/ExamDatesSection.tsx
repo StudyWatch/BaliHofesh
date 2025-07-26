@@ -1,315 +1,218 @@
-import React, { useState } from 'react';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Plus, Calendar, Users } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-import { useRelevantSemesters } from '@/hooks/useSemesters';
 
-interface CourseAddFormProps {
-  onCourseAdded?: () => void;
+import React, { useState } from 'react';
+import { Calendar, Clock, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useExamDates } from '@/hooks/useExamDates';
+import AddToCalendarButton from './AddToCalendarButton';
+
+interface ExamDatesSectionProps {
+  courseId: string;
+  examDate?: string; // Fallback for backward compatibility
 }
 
-const CourseAddForm = ({ onCourseAdded }: CourseAddFormProps) => {
-  const [open, setOpen] = useState(false);
-  const [courseData, setCourseData] = useState({
-    name_he: '',
-    name_en: '',
-    code: '',
-    institution_id: '',
-    semester: '',
-    exam_date: '',
-    enable_collaboration: true,
-  });
-  const [groupLinks, setGroupLinks] = useState({
-    whatsapp_link: '',
-    discord_link: '',
-    telegram_link: ''
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
-
-  // שליפת מוסדות
-  const { data: institutions } = useQuery({
-    queryKey: ['institutions'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('institutions')
-        .select('id, name_he')
-        .order('name_he');
-      if (error) throw error;
-      return data;
+const ExamDatesSection = ({ courseId, examDate }: ExamDatesSectionProps) => {
+  const [showAllDates, setShowAllDates] = useState(false);
+  const { data: examDates, isLoading } = useExamDates(courseId);
+  
+  // Use exam_dates from database, or fallback to single examDate
+  const getExamDates = () => {
+    if (examDates && examDates.length > 0) {
+      return examDates.map(exam => ({
+        type: exam.exam_type,
+        date: exam.exam_date,
+        time: exam.exam_time
+      })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }
-  });
-
-  // שליפת סמסטרים דינמית (אפשר גם להחליף למערך ידני)
-  const { data: semesters = [] } = useRelevantSemesters();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "שגיאה",
-          description: "יש להתחבר כדי להוסיף קורס",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const { data: course, error: courseError } = await supabase
-        .from('courses')
-        .insert({
-          name_he: courseData.name_he,
-          name_en: courseData.name_en || null,
-          code: courseData.code || null,
-          institution_id: courseData.institution_id || null,
-          semester: courseData.semester || null,
-          exam_date: courseData.exam_date || null,
-          enable_collaboration: courseData.enable_collaboration
-        })
-        .select()
-        .single();
-
-      if (courseError) throw courseError;
-
-      // קישורים לקבוצות
-      if (groupLinks.whatsapp_link || groupLinks.discord_link || groupLinks.telegram_link) {
-        await supabase.from('course_groups').insert({
-          course_id: course.id,
-          whatsapp_link: groupLinks.whatsapp_link || null,
-          discord_link: groupLinks.discord_link || null,
-          telegram_link: groupLinks.telegram_link || null
-        });
-      }
-
-      toast({
-        title: "הצלחה!",
-        description: "הקורס נוסף בהצלחה למערכת"
-      });
-
-      // איפוס טופס
-      setCourseData({
-        name_he: '',
-        name_en: '',
-        code: '',
-        institution_id: '',
-        semester: '',
-        exam_date: '',
-        enable_collaboration: true,
-      });
-      setGroupLinks({
-        whatsapp_link: '',
-        discord_link: '',
-        telegram_link: ''
-      });
-      setOpen(false);
-      onCourseAdded?.();
-
-    } catch (error) {
-      console.error('Error adding course:', error);
-      toast({
-        title: "שגיאה",
-        description: "אירעה שגיאה בהוספת הקורס",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
+    
+    if (examDate) {
+      // Fallback: create default dates based on single date
+      const baseDate = new Date(examDate);
+      const moedA2 = new Date(baseDate);
+      moedA2.setDate(moedA2.getDate() + 14);
+      const moedB = new Date(baseDate);
+      moedB.setDate(moedB.getDate() + 30);
+      
+      return [
+        { type: "מועד א'", date: baseDate.toISOString().split('T')[0], time: "13:00" },
+        { type: "מועד א2", date: moedA2.toISOString().split('T')[0], time: "09:00" },
+        { type: "מועד ב'", date: moedB.toISOString().split('T')[0], time: "09:00" }
+      ];
     }
+    
+    return [];
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setCourseData(prev => ({ ...prev, [field]: value }));
+  const allDates = getExamDates();
+  const displayedDates = showAllDates ? allDates : allDates.slice(0, 2);
+
+  const getDateStatus = (dateString: string) => {
+    const examDate = new Date(dateString);
+    const today = new Date();
+    const diffTime = examDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return { status: 'past', color: 'gray', text: 'עבר' };
+    if (diffDays <= 7) return { status: 'soon', color: 'red', text: `${diffDays} ימים` };
+    if (diffDays <= 30) return { status: 'upcoming', color: 'orange', text: `${diffDays} ימים` };
+    return { status: 'future', color: 'blue', text: `${diffDays} ימים` };
   };
 
-  const handleGroupLinkChange = (field: string, value: string) => {
-    setGroupLinks(prev => ({ ...prev, [field]: value }));
-  };
+  if (isLoading) {
+    return (
+      <Card className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-lg">
+        <CardContent className="p-6">
+          <div className="animate-pulse text-center">טוען מועדי בחינות...</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-3 rounded-xl shadow font-bold">
-          <Plus className="w-5 h-5 ml-2" />
-          הוסף קורס חדש
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[95vh] overflow-y-auto rounded-2xl shadow-2xl" dir="rtl">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-extrabold mb-3">הוספת קורס חדש</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-7">
-
-          {/* פרטי קורס */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <Label htmlFor="name_he" className="text-md font-semibold">שם הקורס בעברית *</Label>
-              <Input
-                id="name_he"
-                value={courseData.name_he}
-                onChange={(e) => handleInputChange('name_he', e.target.value)}
-                placeholder="לדוג' מתמטיקה בדידה"
-                className="h-14 text-[18px] rounded-xl px-5 mt-2 bg-gray-50 border border-gray-300"
-                required
-              />
+    <Card className="mb-8 bg-gradient-to-r from-red-50 via-orange-50 to-yellow-50 border-orange-200 shadow-2xl">
+      <CardContent className="p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-r from-red-600 to-orange-600 p-3 rounded-full shadow-lg">
+              <Calendar className="w-8 h-8 text-white" />
             </div>
             <div>
-              <Label htmlFor="name_en" className="text-md font-semibold">שם הקורס באנגלית</Label>
-              <Input
-                id="name_en"
-                value={courseData.name_en}
-                onChange={(e) => handleInputChange('name_en', e.target.value)}
-                placeholder="Discrete Mathematics"
-                className="h-14 text-[18px] rounded-xl px-5 mt-2 bg-gray-50 border border-gray-300"
-              />
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
+                מועדי בחינות
+              </h2>
+              <p className="text-orange-700 font-medium">לוח זמנים מעודכן לבחינות</p>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <Label htmlFor="code" className="text-md font-semibold">קוד קורס</Label>
-              <Input
-                id="code"
-                value={courseData.code}
-                onChange={(e) => handleInputChange('code', e.target.value)}
-                placeholder="20109"
-                className="h-14 text-[18px] rounded-xl px-5 mt-2 bg-gray-50 border border-gray-300"
-              />
-            </div>
-            <div>
-              <Label htmlFor="institution" className="text-md font-semibold">מוסד לימודים</Label>
-              <Select value={courseData.institution_id} onValueChange={(value) => handleInputChange('institution_id', value)}>
-                <SelectTrigger className="h-14 text-[18px] rounded-xl px-5 mt-2 bg-gray-50 border border-gray-300">
-                  <SelectValue placeholder="בחר מוסד" />
-                </SelectTrigger>
-                <SelectContent dir="rtl" className="rounded-xl shadow-2xl">
-                  {institutions?.map((institution) => (
-                    <SelectItem key={institution.id} value={institution.id}
-                      className="py-3 px-5 text-[17px] rounded-lg hover:bg-blue-50 data-[state=checked]:bg-blue-100"
-                    >
-                      {institution.name_he}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="bg-white/80 px-4 py-2 rounded-full border border-orange-200">
+            <span className="text-orange-800 font-medium">🎯 הגיעו מוכנים!</span>
           </div>
-
-          {/* === עיצוב סלקט מתקדם לסמסטר === */}
-          <div>
-            <Label htmlFor="semester" className="text-md font-semibold">סמסטר</Label>
-            <Select value={courseData.semester} onValueChange={(value) => handleInputChange('semester', value)}>
-              <SelectTrigger className="h-14 text-[18px] rounded-xl px-5 mt-2 bg-gray-50 border border-gray-300 focus:ring-2 focus:ring-blue-500">
-                <SelectValue placeholder="בחר סמסטר..." />
-              </SelectTrigger>
-              <SelectContent
-                dir="rtl"
-                className="rounded-xl shadow-2xl min-w-[240px] max-h-72 px-0 py-1 bg-white border border-gray-200"
-                side="bottom"
-              >
-                {semesters.length > 0
-                  ? semesters.map((s: any) => (
-                      <SelectItem
-                        key={s.name}
-                        value={s.name}
-                        className="py-3 px-5 text-[17px] rounded-lg cursor-pointer hover:bg-blue-50 data-[state=checked]:bg-blue-100 data-[state=checked]:font-bold"
+        </div>
+        
+        {allDates.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+              {displayedDates.map((exam, index) => {
+                const dateStatus = getDateStatus(exam.date);
+                const isMain = index < 2; // First two are main dates
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`bg-white rounded-2xl p-6 shadow-xl border-2 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 ${
+                      isMain 
+                        ? 'border-orange-300 bg-gradient-to-br from-white to-orange-25' 
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <Badge 
+                        className={`px-4 py-2 text-base font-bold rounded-full ${
+                          dateStatus.status === 'soon' 
+                            ? 'bg-red-100 text-red-800 border-red-300' 
+                            : dateStatus.status === 'upcoming'
+                            ? 'bg-orange-100 text-orange-800 border-orange-300'
+                            : dateStatus.status === 'past'
+                            ? 'bg-gray-100 text-gray-600 border-gray-300'
+                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                        }`}
                       >
-                        {s.name} {s.is_current && <span className="text-green-600 font-bold">(נוכחי)</span>}
-                      </SelectItem>
-                    ))
-                  : <>
-                      <SelectItem value="סמסטר קיץ תשפ״ה" className="py-3 px-5 text-[17px] rounded-lg font-bold">סמסטר קיץ תשפ״ה <span className="text-green-600 font-bold">(נוכחי)</span></SelectItem>
-                      <SelectItem value="סמסטר אביב תשפ״ה" className="py-3 px-5 text-[17px] rounded-lg">סמסטר אביב תשפ״ה</SelectItem>
-                      <SelectItem value="סמסטר חורף תשפ״ה" className="py-3 px-5 text-[17px] rounded-lg">סמסטר חורף תשפ״ה</SelectItem>
+                        {exam.type}
+                      </Badge>
+                      {dateStatus.status === 'soon' && (
+                        <div className="bg-red-100 p-2 rounded-full">
+                          <AlertTriangle className="w-5 h-5 text-red-600" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 text-gray-800">
+                        <div className="bg-orange-100 p-2 rounded-full">
+                          <Calendar className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-xl">
+                            {new Date(exam.date).toLocaleDateString('he-IL', {
+                              weekday: 'long',
+                              day: 'numeric',
+                              month: 'long'
+                            })}
+                          </span>
+                          <div className="text-sm text-gray-600">
+                            {new Date(exam.date).getFullYear()}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 text-gray-700">
+                        <div className="bg-blue-100 p-2 rounded-full">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <span className="text-xl font-semibold">{exam.time}</span>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg text-center font-bold ${
+                        dateStatus.status === 'past' 
+                          ? 'bg-gray-100 text-gray-600' 
+                          : dateStatus.status === 'soon'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {dateStatus.status === 'past' 
+                          ? '✓ הבחינה הסתיימה' 
+                          : `⏰ נותרו ${dateStatus.text}`
+                        }
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {allDates.length > 2 && (
+              <div className="text-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAllDates(!showAllDates)}
+                  className="px-6 py-3 border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  {showAllDates ? (
+                    <>
+                      <ChevronUp className="w-4 h-4 ml-2" />
+                      הסתר מועדים נוספים
                     </>
-                }
-              </SelectContent>
-            </Select>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4 ml-2" />
+                      הצג את כל המועדים ({allDates.length - 2} נוספים)
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="bg-white rounded-2xl p-12 text-center shadow-xl">
+            <div className="bg-orange-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Calendar className="w-12 h-12 text-orange-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-orange-800 mb-3">מועדי הבחינה יפורסמו בהמשך</h3>
+            <p className="text-orange-600 text-lg">עקבו אחר העדכונים באתר האוניברסיטה</p>
           </div>
-
-          <div>
-            <Label htmlFor="exam_date" className="text-md font-semibold">
-              <Calendar className="inline w-5 h-5 mr-2" />
-              מועד א' (ראשי)
-            </Label>
-            <Input
-              id="exam_date"
-              type="date"
-              value={courseData.exam_date}
-              onChange={(e) => handleInputChange('exam_date', e.target.value)}
-              className="h-14 text-[18px] rounded-xl px-5 mt-2 bg-gray-50 border border-gray-300"
+          )}
+          
+          {/* Add to Calendar Button */}
+          <div className="text-center mt-6">
+            <AddToCalendarButton 
+              courseId={courseId}
+              courseName="הקורס"
+              courseCode={undefined}
             />
           </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
-          {/* קישורי קבוצות */}
-          <div className="border-t pt-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Users className="w-5 h-5 text-green-600" />
-              <span className="text-md font-semibold">קישורי קבוצות קורס (אופציונלי)</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="whatsapp_link" className="text-sm font-semibold">WhatsApp</Label>
-                <Input
-                  id="whatsapp_link"
-                  value={groupLinks.whatsapp_link}
-                  onChange={(e) => handleGroupLinkChange('whatsapp_link', e.target.value)}
-                  placeholder="https://chat.whatsapp.com/..."
-                  type="url"
-                  className="h-12 text-[16px] rounded-lg px-4 mt-2"
-                />
-              </div>
-              <div>
-                <Label htmlFor="discord_link" className="text-sm font-semibold">Discord</Label>
-                <Input
-                  id="discord_link"
-                  value={groupLinks.discord_link}
-                  onChange={(e) => handleGroupLinkChange('discord_link', e.target.value)}
-                  placeholder="https://discord.gg/..."
-                  type="url"
-                  className="h-12 text-[16px] rounded-lg px-4 mt-2"
-                />
-              </div>
-              <div>
-                <Label htmlFor="telegram_link" className="text-sm font-semibold">Telegram</Label>
-                <Input
-                  id="telegram_link"
-                  value={groupLinks.telegram_link}
-                  onChange={(e) => handleGroupLinkChange('telegram_link', e.target.value)}
-                  placeholder="https://t.me/..."
-                  type="url"
-                  className="h-12 text-[16px] rounded-lg px-4 mt-2"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-700 text-white rounded-xl text-lg h-14 hover:bg-blue-900 shadow">
-              {isSubmitting ? "מוסיף..." : "הוסף קורס"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1 h-14 rounded-xl">
-              ביטול
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-      <style>{`
-        [data-radix-popper-content-wrapper] { direction: rtl !important; }
-      `}</style>
-    </Dialog>
-  );
-};
-
-export default CourseAddForm;
+export default ExamDatesSection;

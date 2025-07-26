@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+// ממשק שותף לימוד
 export interface StudyPartner {
   id: string;
   user_id: string;
@@ -15,43 +16,30 @@ export interface StudyPartner {
   profiles?: {
     id: string;
     name: string;
-    email: string;
+    email?: string;
+    avatar_url?: string;
   } | null;
 }
 
-// ✅ 1. טוען את כל הבקשות הפעילות לקורס מסוים
+// 1. טוען את כל הבקשות הפעילות לקורס מסוים, כולל פרטי פרופיל ע"י join
 export const useStudyPartners = (courseId: string) => {
   return useQuery({
     queryKey: ['study-partners', courseId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('study_partners')
-        .select('*')
+        .select('*, profiles(id, name, email, avatar_url)')
         .eq('course_id', courseId)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map(p => p.user_id))];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, name, email')
-          .in('id', userIds);
-
-        return data.map(p => ({
-          ...p,
-          profiles: profiles?.find(pr => pr.id === p.user_id) || null
-        }));
-      }
-
       return data || [];
     }
   });
 };
 
-// ✅ 2. יצירת בקשה חדשה
+// 2. יצירת בקשה חדשה
 export const useCreateStudyPartner = () => {
   const queryClient = useQueryClient();
 
@@ -75,7 +63,7 @@ export const useCreateStudyPartner = () => {
       const { data: result, error } = await supabase
         .from('study_partners')
         .insert(cleanData)
-        .select()
+        .select('*, profiles(id, name, email, avatar_url)')
         .single();
 
       if (error) throw error;
@@ -88,7 +76,7 @@ export const useCreateStudyPartner = () => {
   });
 };
 
-// ✅ 3. מחיקת בקשה קיימת
+// 3. מחיקת בקשה קיימת
 export const useDeleteStudyPartner = () => {
   const queryClient = useQueryClient();
 
@@ -107,7 +95,7 @@ export const useDeleteStudyPartner = () => {
   });
 };
 
-// ✅ 4. שליפת הבקשה הפעילה של המשתמש הנוכחי לקורס
+// 4. שליפת הבקשה הפעילה של המשתמש הנוכחי לקורס
 export const useUserActiveStudyPartner = (courseId: string) => {
   return useQuery({
     queryKey: ['user-active-partner', courseId],
@@ -117,7 +105,7 @@ export const useUserActiveStudyPartner = (courseId: string) => {
 
       const { data, error } = await supabase
         .from('study_partners')
-        .select('*')
+        .select('*, profiles(id, name, email, avatar_url)')
         .eq('user_id', user.id)
         .eq('course_id', courseId)
         .gt('expires_at', new Date().toISOString())
@@ -133,7 +121,7 @@ export const useUserActiveStudyPartner = (courseId: string) => {
   });
 };
 
-// ✅ 5. הארכת בקשה קיימת (לפי ID)
+// 5. הארכת בקשה קיימת (לפי ID)
 export const useExtendStudyPartner = () => {
   const queryClient = useQueryClient();
 
@@ -164,7 +152,7 @@ export const useExtendStudyPartner = () => {
   });
 };
 
-// ✅ 6. עריכת בקשה קיימת
+// 6. עריכת בקשה קיימת
 export const useUpdateStudyPartner = () => {
   const queryClient = useQueryClient();
 

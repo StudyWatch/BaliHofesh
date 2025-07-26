@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react"; 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,8 +20,8 @@ import Tutors from "./pages/Tutors";
 import TutorProfile from "./pages/TutorProfile";
 import Tips from "./pages/Tips";
 import Store from "./pages/Store";
-import WishlistPage from "./pages/Wishlist";        // ✅ חדש
-import ShoppingCartPage from "./pages/ShoppingCart"; // ✅ חדש
+import WishlistPage from "./pages/Wishlist";
+import ShoppingCartPage from "./pages/ShoppingCart";
 import Login from "./pages/Login";
 import MyCourses from "./pages/MyCourses";
 import Profile from "./pages/Profile";
@@ -30,9 +30,18 @@ import EmailVerificationPage from "./components/auth/EmailVerificationPage";
 import NotFound from "./pages/NotFound";
 import TutorDashboard from "@/components/tutors/TutorDashboard";
 
-// Providers ל־Store בלבד
+// ✅ נוסיף CartContext כדי למנוע שגיאת ייבוא
+export const CartContext = createContext({});
+export const CartProvider = ({ children }: { children: React.ReactNode }) => {
+  const [cart, setCart] = useState<any[]>([]);
+  return (
+    <CartContext.Provider value={{ cart, setCart }}>
+      {children}
+    </CartContext.Provider>
+  );
+};
+
 import { WishlistProvider } from "@/contexts/WishlistContext";
-import { CartProvider } from "@/contexts/CartContext"; // אם יש לך כזה
 
 // --- Auth context ---
 interface AuthContextType {
@@ -66,16 +75,18 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await supabase.auth.signOut();
       setSession(null);
       setUser(null);
-      window.location.href = "/";
+      window.location.pathname = "/"; // אפשר גם להשאיר ככה
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
 
   useEffect(() => {
+    let mounted = true;
     const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
+        if (!mounted) return;
         if (error) {
           console.error("Session error:", error);
           setLoading(false);
@@ -93,6 +104,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
         setLoading(false);
       } catch (error) {
+        if (!mounted) return;
         console.error("Auth initialization error:", error);
         setLoading(false);
       }
@@ -102,6 +114,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
         if (event === "SIGNED_IN" && session?.user?.email_confirmed_at) {
           setSession(session);
           setUser(session.user);
@@ -121,7 +134,10 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -130,6 +146,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
+
 
 const TutorRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -164,8 +181,6 @@ const TutorRoute = ({ children }: { children: React.ReactNode }) => {
   return isTutor ? <>{children}</> : <Navigate to="/" />;
 };
 
-// ✅ כאן רק עמודי STORE (כולל Wishlist/Cart) נעטפים בפרוביידר!
-//    בכל שאר האתר — לא יהיה context ללב/עגלה בכלל.
 const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <CartProvider>
     <WishlistProvider>
@@ -184,7 +199,6 @@ const App = () => (
           <NotificationOrchestrator />
           <BrowserRouter>
             <Routes>
-              {/* דפים רגילים */}
               <Route path="/" element={<Index />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/courses" element={<Universities />} />
@@ -204,8 +218,6 @@ const App = () => (
                   <TutorDashboard />
                 </TutorRoute>
               } />
-
-              {/* דפי חנות – עטופים בפרוביידר */}
               <Route path="/store" element={
                 <StoreProviders>
                   <Store />
@@ -221,8 +233,6 @@ const App = () => (
                   <ShoppingCartPage />
                 </StoreProviders>
               } />
-
-              {/* דף 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AccessibilityButton />

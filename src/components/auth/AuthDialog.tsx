@@ -29,7 +29,9 @@ const AVATAR_CHOICES = [
 interface AuthDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultTab?: 'login' | 'signup'; // ← ודא שזה קיים
 }
+
 
 const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
   const { dir } = useLanguage();

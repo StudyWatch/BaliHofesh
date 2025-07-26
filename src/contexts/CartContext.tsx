@@ -1,3 +1,5 @@
+// src/contexts/CartContext.tsx
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface CartProduct {
@@ -24,27 +26,33 @@ const CartContext = createContext<CartContextType>({
 
 export const useCart = () => useContext(CartContext);
 
-const CART_STORAGE_KEY = 'student_cart';
+const CART_KEY = 'student_cart';
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cartItems, setCartItems] = useState<CartProduct[]>([]);
 
+  // טען מה־localStorage
   useEffect(() => {
-    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    const stored = localStorage.getItem(CART_KEY);
     if (stored) {
-      setCartItems(JSON.parse(stored));
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setCartItems(parsed);
+      } catch {
+        setCartItems([]);
+      }
     }
   }, []);
 
+  // שמור ל־localStorage
   useEffect(() => {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+    localStorage.setItem(CART_KEY, JSON.stringify(cartItems));
   }, [cartItems]);
 
   const addToCart = (product: CartProduct) => {
     setCartItems(prev => {
-      const exists = prev.find(p => p.id === product.id);
-      if (exists) return prev;
-      return [...prev, product];
+      const exists = prev.some(p => p.id === product.id);
+      return exists ? prev : [...prev, product];
     });
   };
 

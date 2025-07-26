@@ -30,44 +30,94 @@ interface NotificationSettingsProps {
   onClose: () => void;
 }
 
-type JsonCompatiblePreferences = Record<string, string | number | boolean | null>;
-
-const defaultSettings: JsonCompatiblePreferences = {
-  exam_reminders: true,
-  assignment_reminders: true,
-  reminder_days_before: 2,
-  message_notifications: true,
-  study_partner_notifications: true,
-  study_session_notifications: true,
-  course_updates: false,
-  email_notifications: true,
+type NotificationPreferences = {
+  exams: {
+    push: boolean;
+    site: boolean;
+    reminder_days_before: number;
+  };
+  assignments: {
+    push: boolean;
+    site: boolean;
+    reminder_days_before: number;
+  };
+  system: {
+    push: boolean;
+    site: boolean;
+  };
 };
+
+const defaultPreferences: NotificationPreferences = {
+  exams: {
+    push: true,
+    site: true,
+    reminder_days_before: 3,
+  },
+  assignments: {
+    push: true,
+    site: true,
+    reminder_days_before: 2,
+  },
+  system: {
+    push: false,
+    site: true,
+  },
+};
+
+// Type Guard to check object type
+function isNotificationPreferences(obj: any): obj is NotificationPreferences {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'exams' in obj &&
+    'assignments' in obj &&
+    'system' in obj
+  );
+}
 
 const NotificationSettings: React.FC<NotificationSettingsProps> = ({ onClose }) => {
   const { user } = useAuth();
-  const [settings, setSettings] = useState<JsonCompatiblePreferences>(defaultSettings);
+  const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadPreferences = async () => {
       if (!user) return;
       setLoading(true);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('notification_preferences')
         .eq('id', user.id)
         .single();
 
-      if (data?.notification_preferences) {
-        setSettings(data.notification_preferences);
+      let loaded: any = data?.notification_preferences ?? {};
+      if (isNotificationPreferences(loaded)) {
+        // merge with defaults for missing fields
+        setPreferences({
+          exams: { ...defaultPreferences.exams, ...loaded.exams },
+          assignments: { ...defaultPreferences.assignments, ...loaded.assignments },
+          system: { ...defaultPreferences.system, ...loaded.system },
+        });
+      } else {
+        setPreferences(defaultPreferences);
       }
       setLoading(false);
     };
-    loadSettings();
+    loadPreferences();
   }, [user]);
 
-  const updateSetting = (key: string, value: boolean | string | number) => {
-    setSettings((prev: JsonCompatiblePreferences) => ({ ...prev, [key]: value }));
+  const updatePref = <T extends keyof NotificationPreferences, K extends keyof NotificationPreferences[T]>(
+    section: T,
+    key: K,
+    value: NotificationPreferences[T][K]
+  ) => {
+    setPreferences(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [key]: value,
+      },
+    }));
   };
 
   const handleSave = async () => {
@@ -75,7 +125,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ onClose }) 
     setLoading(true);
     const { error } = await supabase
       .from('profiles')
-      .update({ notification_preferences: settings })
+      .update({ notification_preferences: preferences })
       .eq('id', user.id);
 
     if (error) {
@@ -88,94 +138,100 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ onClose }) 
   };
 
   return (
-    <Card className="bg-white">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="w-5 h-5" />
-          הגדרות התראות
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900 border-b pb-2">התראות באפליקציה</h3>
+    <div className="relative w-full max-w-lg mx-auto">
+      <Card className="bg-white dark:bg-zinc-900 shadow-xl rounded-2xl max-h-[95vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-800">
+        <CardHeader className="sticky top-0 bg-white/90 dark:bg-zinc-900/80 z-20 rounded-t-2xl">
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5" />
+            הגדרות התראות
+          </CardTitle>
+        </CardHeader>
 
-          <SettingRow
-            icon={<Calendar className="w-4 h-4 text-blue-500" />}
-            title="תזכורות לבחינות"
-            subtitle="התראות לפני מועדי בחינות"
-            value={!!settings.exam_reminders}
-            onChange={(v) => updateSetting('exam_reminders', v)}
-          />
-
-          <SettingRow
-            icon={<Calendar className="w-4 h-4 text-purple-500" />}
-            title="תזכורות למטלות"
-            subtitle="התראות לפני מועדי הגשות"
-            value={!!settings.assignment_reminders}
-            onChange={(v) => updateSetting('assignment_reminders', v)}
-          />
-
-          <SettingRow
-            icon={<MessageSquare className="w-4 h-4 text-green-500" />}
-            title="הודעות חדשות"
-            subtitle="התראות על הודעות פרטיות"
-            value={!!settings.message_notifications}
-            onChange={(v) => updateSetting('message_notifications', v)}
-          />
-
-          <SettingRow
-            icon={<Users className="w-4 h-4 text-purple-500" />}
-            title="הזמנות למפגשי לימוד"
-            subtitle="התראות על מפגשים שיתופיים"
-            value={!!settings.study_session_notifications}
-            onChange={(v) => updateSetting('study_session_notifications', v)}
-          />
-
-          <SettingRow
-            icon={<Users className="w-4 h-4 text-orange-500" />}
-            title="בקשות שותפי לימוד"
-            subtitle="הצעות לשותפי לימוד פוטנציאליים"
-            value={!!settings.study_partner_notifications}
-            onChange={(v) => updateSetting('study_partner_notifications', v)}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900 border-b pb-2">התראות אימייל</h3>
-
-          <SettingRow
-            icon={<Mail className="w-4 h-4 text-red-500" />}
-            title="קבלת התראות באימייל"
-            subtitle="עדכונים חשובים ישלחו לדוא״ל"
-            value={!!settings.email_notifications}
-            onChange={(v) => updateSetting('email_notifications', v)}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900 border-b pb-2">הגדרות זמן</h3>
-
-          <div className="space-y-2">
-            <Label htmlFor="reminder_days_before">כמה ימים לפני לשלוח תזכורת</Label>
-            <Select
-              value={String(settings.reminder_days_before)}
-              onValueChange={(value) => updateSetting('reminder_days_before', parseInt(value))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="בחר מספר ימים" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">יום לפני</SelectItem>
-                <SelectItem value="2">יומיים לפני</SelectItem>
-                <SelectItem value="3">3 ימים לפני</SelectItem>
-                <SelectItem value="5">5 ימים לפני</SelectItem>
-                <SelectItem value="7">שבוע לפני</SelectItem>
-              </SelectContent>
-            </Select>
+        <CardContent className="space-y-8 pb-4">
+          {/* בחינות */}
+          <SectionTitle icon={<Calendar className="w-5 h-5 text-blue-500" />} title="התראות בחינות" />
+          <div className="space-y-4">
+            <ToggleRow
+              label="התראה לאתר"
+              checked={preferences.exams.site}
+              onChange={val => updatePref('exams', 'site', val)}
+            />
+            <ToggleRow
+              label="התראה לפוש"
+              checked={preferences.exams.push}
+              onChange={val => updatePref('exams', 'push', val)}
+            />
+            <div>
+              <Label>ימים לפני בחינה לתזכורת</Label>
+              <Select
+                value={String(preferences.exams.reminder_days_before)}
+                onValueChange={value => updatePref('exams', 'reminder_days_before', Number(value))}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">יום לפני</SelectItem>
+                  <SelectItem value="2">יומיים לפני</SelectItem>
+                  <SelectItem value="3">3 ימים לפני</SelectItem>
+                  <SelectItem value="5">5 ימים לפני</SelectItem>
+                  <SelectItem value="7">שבוע לפני</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
 
-        <div className="flex gap-3 pt-4">
+          {/* מטלות */}
+          <SectionTitle icon={<Calendar className="w-5 h-5 text-purple-500" />} title="התראות מטלות" />
+          <div className="space-y-4">
+            <ToggleRow
+              label="התראה לאתר"
+              checked={preferences.assignments.site}
+              onChange={val => updatePref('assignments', 'site', val)}
+            />
+            <ToggleRow
+              label="התראה לפוש"
+              checked={preferences.assignments.push}
+              onChange={val => updatePref('assignments', 'push', val)}
+            />
+            <div>
+              <Label>ימים לפני מטלה לתזכורת</Label>
+              <Select
+                value={String(preferences.assignments.reminder_days_before)}
+                onValueChange={value => updatePref('assignments', 'reminder_days_before', Number(value))}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">יום לפני</SelectItem>
+                  <SelectItem value="2">יומיים לפני</SelectItem>
+                  <SelectItem value="3">3 ימים לפני</SelectItem>
+                  <SelectItem value="5">5 ימים לפני</SelectItem>
+                  <SelectItem value="7">שבוע לפני</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* התראות מערכת */}
+          <SectionTitle icon={<Mail className="w-5 h-5 text-orange-500" />} title="התראות מערכת" />
+          <div className="space-y-4">
+            <ToggleRow
+              label="התראה לאתר"
+              checked={preferences.system.site}
+              onChange={val => updatePref('system', 'site', val)}
+            />
+            <ToggleRow
+              label="התראה לפוש"
+              checked={preferences.system.push}
+              onChange={val => updatePref('system', 'push', val)}
+            />
+          </div>
+        </CardContent>
+
+        {/* כפתורים צמודים לתחתית ותמיד נגללים! */}
+        <div className="sticky bottom-0 bg-white dark:bg-zinc-900 rounded-b-2xl z-30 p-4 flex gap-3 border-t mt-3">
           <Button onClick={handleSave} className="flex-1" disabled={loading}>
             שמור הגדרות
           </Button>
@@ -183,33 +239,30 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ onClose }) 
             ביטול
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 };
 
-const SettingRow = ({
-  icon,
-  title,
-  subtitle,
-  value,
+const SectionTitle = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
+  <div className="flex items-center gap-2 mb-2 mt-2">
+    {icon}
+    <span className="font-bold text-lg">{title}</span>
+  </div>
+);
+
+const ToggleRow = ({
+  label,
+  checked,
   onChange,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
 }) => (
   <div className="flex items-center justify-between">
-    <div className="flex items-center gap-3">
-      {icon}
-      <div>
-        <Label className="font-medium">{title}</Label>
-        {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
-      </div>
-    </div>
-    <Switch checked={value} onCheckedChange={onChange} />
+    <Label className="font-medium">{label}</Label>
+    <Switch checked={checked} onCheckedChange={onChange} />
   </div>
 );
 

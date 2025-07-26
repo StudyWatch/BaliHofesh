@@ -28,61 +28,55 @@ export interface UserCourseProgress {
   };
 }
 
-// Hook לשליפת הקורסים המועדפים של המשתמש
+// Hook לשליפת הקורסים המועדפים של המשתמש (מעדכן)
 export const useFavoriteCourses = () => {
-  return useQuery({
+  return useQuery<UserCourseProgress[]>({
     queryKey: ['favorite-courses'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
 
-      try {
-        const { data, error } = await supabase
-          .from('user_course_progress')
-          .select(`
+      const { data, error } = await supabase
+        .from('user_course_progress')
+        .select(`
+          id,
+          user_id,
+          course_id,
+          status,
+          progress_percentage,
+          semester,
+          is_favorite,
+          created_at,
+          updated_at,
+          courses (
             id,
-            user_id,
-            course_id,
-            status,
-            progress_percentage,
+            name_he,
+            name_en,
+            code,
             semester,
-            created_at,
-            updated_at,
-            courses!inner (
+            institutions (
               id,
               name_he,
-              name_en,
-              code,
-              semester,
-              institutions (
-                id,
-                name_he,
-                color
-              )
+              color
             )
-          `)
-          .eq('user_id', user.id);
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_favorite', true); // שלוף רק מועדפים
 
-        if (error) {
-          console.error('Error fetching favorite courses:', error);
-          return [];
-        }
-
-        // Filter for favorites manually to avoid column errors
-        return data?.filter((item: any) => 
-          item.is_favorite === true || item.status === 'active'
-        ) || [];
-      } catch (err) {
-        console.error('Error in useFavoriteCourses:', err);
+      if (error) {
+        console.error('Error fetching favorite courses:', error);
         return [];
       }
+
+      return data as UserCourseProgress[] || [];
     }
   });
 };
 
-// Hook לבדיקה אם קורס הוא מועדף
+// בדיקת קורס מסוים במועדפים
 export const useIsFavorite = (courseId: string) => {
-  return useQuery({
+  return useQuery<boolean>({
     queryKey: ['is-favorite', courseId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -96,67 +90,74 @@ export const useIsFavorite = (courseId: string) => {
         .maybeSingle();
 
       if (error) return false;
-      return (data as any)?.is_favorite === true;
+      return Boolean((data as any)?.is_favorite);
     }
   });
 };
 
-// Hook לעדכון סטטוס מועדף - משתמש בפונקציה handle_course_favorite
+// הוספה/הסרה של קורס למועדפים
 export const useToggleFavorite = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ 
-      courseId, 
+    mutationFn: async ({
+      courseId,
       isFavorite,
-      semester 
-    }: { 
-      courseId: string; 
+      semester,
+    }: {
+      courseId: string;
       isFavorite: boolean;
       semester?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Direct update to user_course_progress with safe field handling
-      const { data: existing } = await supabase
+      // האם קיים כבר רשומה עבור הקורס הזה
+      const { data: existing, error: fetchError } = await supabase
         .from('user_course_progress')
         .select('id')
         .eq('user_id', user.id)
         .eq('course_id', courseId)
         .single();
 
-      const updateData: any = {};
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+      const updateData: any = { is_favorite: isFavorite };
       if (semester) updateData.semester = semester;
-      if (isFavorite !== undefined) updateData.is_favorite = isFavorite;
 
       if (existing) {
+        // עדכון
         const { error } = await supabase
           .from('user_course_progress')
           .update(updateData)
           .eq('id', existing.id);
         if (error) throw error;
-      } else {
+      } else if (isFavorite) {
+        // יצירה
         const insertData = {
           user_id: user.id,
           course_id: courseId,
           status: 'active',
           progress_percentage: 0,
-          ...updateData
+          is_favorite: true,
+          semester,
         };
-        
         const { error } = await supabase
           .from('user_course_progress')
           .insert(insertData);
         if (error) throw error;
       }
 
-      return { success: true };
+      return { success: true, isFavorite };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['favorite-courses'] });
       queryClient.invalidateQueries({ queryKey: ['is-favorite', variables.courseId] });
+      queryClient.invalidateQueries({ queryKey: ['user-course-progress'] });
+      queryClient.invalidateQueries({ queryKey: ['my-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+
       toast({
         title: variables.isFavorite ? '⭐ נוסף למועדפים' : '📚 הוסר מהמועדפים',
         description: variables.isFavorite ? 'הקורס נשמר למועדפים' : 'הקורס הוסר מהמועדפים'
@@ -173,7 +174,7 @@ export const useToggleFavorite = () => {
   });
 };
 
-// Hook לסטטיסטיקות מועדפים
+// סטטיסטיקות מועדפים (תמיד על שדה is_favorite בלבד)
 export const useFavoriteStats = () => {
   return useQuery({
     queryKey: ['favorite-stats'],
@@ -181,35 +182,29 @@ export const useFavoriteStats = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return { total: 0, bySemester: {} };
 
-      try {
-        const { data, error } = await supabase
-          .from('user_course_progress')
-          .select('semester')
-          .eq('user_id', user.id);
+      const { data, error } = await supabase
+        .from('user_course_progress')
+        .select('semester')
+        .eq('user_id', user.id)
+        .eq('is_favorite', true);
 
-        if (error) {
-          console.error('Error fetching favorite stats:', error);
-          return { total: 0, bySemester: {} };
-        }
-
-        const favoriteData = data?.filter((item: any) => 
-          item.is_favorite === true || item.status === 'active'
-        ) || [];
-
-        const bySemester: Record<string, number> = {};
-        favoriteData.forEach((item: any) => {
-          const semester = item.semester || 'אחר';
-          bySemester[semester] = (bySemester[semester] || 0) + 1;
-        });
-
-        return { 
-          total: favoriteData.length, 
-          bySemester 
-        };
-      } catch (err) {
-        console.error('Error in useFavoriteStats:', err);
+      if (error) {
+        console.error('Error fetching favorite stats:', error);
         return { total: 0, bySemester: {} };
       }
+
+      const favoriteData = data || [];
+      const bySemester: Record<string, number> = {};
+
+      favoriteData.forEach((item: any) => {
+        const semester = item.semester || 'אחר';
+        bySemester[semester] = (bySemester[semester] || 0) + 1;
+      });
+
+      return {
+        total: favoriteData.length,
+        bySemester
+      };
     }
   });
 };

@@ -1,27 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/App';
+import { useCourseGroups } from '@/hooks/useCourseGroups';
+import { useUserStudyPartners } from '@/hooks/useUserStudyPartners';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+
 import { useToast } from '@/hooks/use-toast';
-import Header from '@/components/Header';
-import {
-  useUserProfile,
-  useUserFavoriteCourses,
-  useUserActivePartnerships,
-  useUserActiveSessions,
-  useProfileStats
-} from '@/hooks/useProfile';
+import { useUserProfile, useUserFavoriteCourses, useUserActivePartnerships, useUserActiveSessions, useProfileStats } from '@/hooks/useProfile';
 import { useMessages } from '@/hooks/useMessages';
 import { useSystemNotifications } from '@/hooks/useSystemNotifications';
 import { useTutors } from '@/hooks/useTutors';
+import { useStudyPartners } from '@/hooks/useStudyPartners';
+import { useSharedSessions } from '@/hooks/useSharedSessions';
+
+import Header from '@/components/Header';
 import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
 import NotificationSettings from '@/components/profile/NotificationSettings';
 import { AdvancedCalendar } from '@/components/calendar/AdvancedCalendar';
+
 import {
   User,
   Edit,
@@ -47,7 +50,7 @@ import {
   Layers,
   UserPlus
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+
 import { PieChart, Pie, Cell, Tooltip as ChartTooltip, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import tippy from 'tippy.js';
@@ -120,18 +123,26 @@ const Profile = () => {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isEditOpen, setIsEditOpen] = useState(false);
+const [showAll, setShowAll] = useState(false);
 
-  // --- Data loading hooks
-  const { data: notifications = [] } = useSystemNotifications();
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+// --- Data loading hooks
+const { data: notifications = [] } = useSystemNotifications();
+const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  const { data: profile, isLoading: profileLoading } = useUserProfile();
-  const { data: favoriteCourses, isLoading: loadingCourses } = useUserFavoriteCourses();
-  const { data: partnerships, isLoading: partnershipsLoading } = useUserActivePartnerships();
-  const { data: sessions, isLoading: sessionsLoading } = useUserActiveSessions();
-  const { data: stats, isLoading: statsLoading } = useProfileStats();
-  const { data: messages, isLoading: messagesLoading } = useMessages('received');
-  const { data: tutors } = useTutors();
+const { data: profile, isLoading: profileLoading } = useUserProfile();
+const { data: favoriteCourses = [], isLoading: loadingCourses } = useUserFavoriteCourses();
+const courseIds = favoriteCourses.map((c) => c.course_id);
+
+const { data: partnerships, isLoading: partnershipsLoading } = useUserActivePartnerships();
+const { data: sessions, isLoading: sessionsLoading } = useUserActiveSessions();
+const { data: stats, isLoading: statsLoading } = useProfileStats();
+const { data: messages, isLoading: messagesLoading } = useMessages('received');
+const { data: tutors } = useTutors();
+
+const {
+  data: studyPartners = [],
+  isLoading: studyPartnersLoading,
+} = useUserStudyPartners(courseIds);
 
   // --- Logout logic
   const handleLogout = () => {
@@ -224,12 +235,22 @@ const Profile = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.3, type: "spring" }}
             >
-              <Avatar className="w-28 h-28 border-4 border-white shadow-lg">
-                <AvatarImage src={profile.avatar_url} />
-                <AvatarFallback className="text-3xl bg-white/40 text-indigo-900">
-                  {profile.name?.charAt(0) || 'U'}
-                </AvatarFallback>
-              </Avatar>
+             <div className="relative group w-28 h-28">
+  <Avatar className="w-full h-full border-4 border-white shadow-lg">
+    <AvatarImage src={profile.avatar_url} />
+    <AvatarFallback className="text-3xl bg-white/40 text-indigo-900">
+      {profile.name?.charAt(0) || 'U'}
+    </AvatarFallback>
+  </Avatar>
+  <button
+    onClick={() => setIsEditOpen(true)}
+    className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition rounded-full"
+    title="ערוך תמונה"
+  >
+    <Edit className="w-6 h-6" />
+  </button>
+</div>
+
             </motion.div>
             <div className="flex-1">
               <h1 className="text-4xl font-extrabold drop-shadow-lg mb-2">שלום, {profile.name || user.email}!</h1>
@@ -350,17 +371,49 @@ const Profile = () => {
         </div>
 
         {/* --- Tabs + כל המשך הטאבים לפי הסגנון הזה! --- */}
-        <Tabs defaultValue="calendar" className="bg-white/80 dark:bg-zinc-900/80 rounded-3xl shadow-2xl p-6 mb-10 space-y-6 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-5 mb-6">
-            <TabsTrigger value="calendar" className="text-base">לוח שנה</TabsTrigger>
-            <TabsTrigger value="overview" className="text-base">סקירה</TabsTrigger>
-            <TabsTrigger value="courses" className="text-base">הקורסים שלי</TabsTrigger>
-            <TabsTrigger value="activities" className="text-base">פעילויות</TabsTrigger>
-            <TabsTrigger value="messages" className="text-base">הודעות</TabsTrigger>
-          </TabsList>
+    <Tabs defaultValue="calendar" className="bg-white/90 dark:bg-zinc-900/80 rounded-3xl shadow-2xl p-4 mb-10 space-y-6">
+  <div className="w-full">
+    <TabsList className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+      <TabsTrigger
+        value="calendar"
+        className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow transition"
+      >
+        <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+        לוח שנה
+      </TabsTrigger>
+      <TabsTrigger
+        value="overview"
+        className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow transition"
+      >
+        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+        סקירה
+      </TabsTrigger>
+      <TabsTrigger
+        value="courses"
+        className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow transition"
+      >
+        <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+        הקורסים שלי
+      </TabsTrigger>
+      <TabsTrigger
+        value="activities"
+        className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow transition"
+      >
+        <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+        פעילויות
+      </TabsTrigger>
+      <TabsTrigger
+        value="messages"
+        className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow transition"
+      >
+        <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+        הודעות
+      </TabsTrigger>
+    </TabsList>
+  </div>
 
           {/* Enhanced Calendar Tab */}
-<TabsContent value="calendar" className="space-y-6">
+<TabsContent value="calendar" className="space-y-6 pt-28 sm:pt-6">
   {!loadingCourses ? (
     <AdvancedCalendar 
       userCourses={favoriteCourses || []}
@@ -375,8 +428,9 @@ const Profile = () => {
   )}
 </TabsContent>
 
+
           {/* Overview Tab - Reorganized */}
-          <TabsContent value="overview" className="space-y-6">
+          <TabsContent value="overview" className="space-y-6 pt-28 sm:pt-6">
             <div className="grid lg:grid-cols-3 gap-6">
               {/* Enhanced Profile Info */}
               <Card>
@@ -558,7 +612,7 @@ const Profile = () => {
             </div>
           </TabsContent>
 {/* Courses Tab */}
-<TabsContent value="courses" className="w-full">
+<TabsContent value="courses" className="space-y-6 pt-28 sm:pt-6">
   <Card className="w-full">
     <CardHeader>
       <CardTitle className="flex items-center justify-between">
@@ -603,7 +657,15 @@ const Profile = () => {
                         </Badge>
                       )}
                     </div>
-                    <h3 className="font-semibold mb-1">{course.courses?.name_he}</h3>
+<h3
+  className="font-semibold mb-1 text-indigo-700 hover:underline cursor-pointer"
+  onClick={(e) => {
+    e.stopPropagation(); // מונע לחיצה כפולה מה-Card
+    navigate(`/course/${course.course_id}`);
+  }}
+>
+  {course.courses?.name_he}
+</h3>
                     <p className="text-sm text-muted-foreground mb-1">
                       סמסטר: {course.semester}
                     </p>
@@ -661,8 +723,7 @@ const Profile = () => {
   </Card>
 </TabsContent>
 
-{/* Activities Tab */}
-<TabsContent value="activities" className="space-y-6">
+<TabsContent value="activities" className="space-y-6 pt-28 sm:pt-6">
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
     {/* שותפויות לימוד */}
     <Card className="rounded-xl shadow-md hover:shadow-lg transition">
@@ -688,7 +749,7 @@ const Profile = () => {
               <div className="flex items-center gap-2 mb-1">
                 <Users className="w-4 h-4 text-purple-600" />
                 <span className="font-medium">
-                  {partnership.courses?.name_he}
+                  {partnership.courses?.name_he || 'ללא קורס'}
                 </span>
                 <Badge variant="secondary" className="text-xs">
                   {partnership.status === 'active' ? 'פעיל' : 'לא פעיל'}
@@ -736,7 +797,7 @@ const Profile = () => {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {session.courses?.name_he}
+                {session.courses?.name_he || 'ללא קורס'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {new Date(session.created_at).toLocaleDateString('he-IL')}
@@ -751,26 +812,74 @@ const Profile = () => {
       </CardContent>
     </Card>
 
-    {/* קבוצות קורסים */}
-    <Card className="rounded-xl shadow-md hover:shadow-lg transition">
+    {/* שותפי לימוד כלליים */}
+  {/* שותפי לימוד זמינים (מוצגים מהקורסים שלך) */}
+    <Card className="rounded-xl shadow-md hover:shadow-lg transition flex flex-col">
       <CardHeader className="bg-gradient-to-r from-blue-400 to-indigo-600 text-white rounded-t-xl">
         <CardTitle className="flex items-center gap-2 text-lg">
-          <MessageSquare className="w-5 h-5" />
-          קבוצות קורסים
+          <UserPlus className="w-5 h-5" />
+          שותפי לימוד זמינים ({studyPartners?.length || 0})
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 space-y-3">
-        {favoriteCourses && favoriteCourses.length > 0 ? (
-          favoriteCourses.map((course: any) => (
-            <CourseGroupItem
-              key={course.course_id}
-              courseId={course.course_id}
-              courseName={course.courses?.name_he}
-            />
-          ))
+      <CardContent className="p-4 flex-1 flex flex-col">
+        {studyPartnersLoading ? (
+          <div className="animate-pulse space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-16 bg-muted rounded-lg"></div>
+            ))}
+          </div>
+        ) : studyPartners && studyPartners.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+              {(showAll ? studyPartners : studyPartners.slice(0, 6)).map((partner: any) => (
+                <div
+                  key={partner.id}
+                  className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-indigo-100 dark:border-zinc-800 p-4 flex items-center gap-4 hover:bg-indigo-50 dark:hover:bg-zinc-800/40 transition"
+                >
+                  <Avatar className="w-11 h-11 ring-2 ring-blue-200 dark:ring-blue-600">
+                    <AvatarImage
+                      src={partner.avatar_url || partner.profiles?.avatar_url}
+                      alt={partner.profiles?.name || "שותף"}
+                    />
+                    <AvatarFallback className="bg-indigo-100 text-indigo-600">
+                      {partner.profiles?.name?.[0] || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold truncate">{partner.profiles?.name || "אנונימי"}</span>
+                      <Badge variant="secondary" className="text-[11px]" title={partner.courses?.name_he}>
+                        {partner.courses?.name_he ? (partner.courses.name_he.length > 15 ? partner.courses.name_he.slice(0, 15) + "…" : partner.courses.name_he) : "לא ידוע"}
+                      </Badge>
+                      {partner.expires_at && (
+                        <Badge className="bg-yellow-100 text-yellow-700 border-0 text-[11px]">
+                          עד {new Date(partner.expires_at).toLocaleDateString('he-IL')}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {partner.description || <span className="italic text-zinc-400">אין תיאור</span>}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {studyPartners.length > 6 && (
+              <div className="flex justify-center mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full text-indigo-600 border-indigo-300"
+                  onClick={() => setShowAll((v) => !v)}
+                >
+                  {showAll ? "הסתר חלק" : `הצג את כולם (${studyPartners.length})`}
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-4 text-muted-foreground">
-            אין קורסים פעילים להצגת קבוצות
+            אין שותפי לימוד להצגה
           </div>
         )}
       </CardContent>
@@ -778,9 +887,12 @@ const Profile = () => {
   </div>
 </TabsContent>
 
+
+
+
 {/* Messages Tab */}
 <TabsContent value="messages">
-  <Card className="rounded-xl shadow-md hover:shadow-lg transition">
+  <Card className="space-y-6 pt-28 sm:pt-6">
     <CardHeader className="bg-gradient-to-r from-cyan-500 to-sky-600 text-white rounded-t-xl">
       <CardTitle className="flex items-center justify-between text-lg">
         <span className="flex items-center gap-2">
@@ -917,6 +1029,93 @@ const CourseGroupItem = ({ courseId, courseName }: { courseId: string; courseNam
         )}
       </div>
     </div>
+  );
+};
+const StudyPartnersSection = () => {
+  const { data: favoriteCourses = [] } = useUserFavoriteCourses();
+  return (
+    <Card className="rounded-xl shadow-md hover:shadow-lg transition h-full flex flex-col">
+      <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-t-xl">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Users className="w-5 h-5" />
+          שותפויות לימוד
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[300px]">
+        {favoriteCourses.length === 0 && (
+          <div className="text-center py-4 text-muted-foreground">לא שמרת קורסים לעקוב אחריהם</div>
+        )}
+        {favoriteCourses.map((course) => {
+          const { data: partners = [], isLoading } = useStudyPartners(course.course_id);
+          return (
+            <div key={course.course_id} className="mb-3">
+              <div className="font-bold text-indigo-700 text-xs mb-1">{course.courses?.name_he || course.name_he}</div>
+              {isLoading ? (
+                <div className="animate-pulse h-8 bg-muted rounded-lg"></div>
+              ) : partners.length > 0 ? (
+                partners.map((partner) => (
+                  <div key={partner.id} className="p-2 border rounded-lg mb-1 bg-muted/40 hover:bg-muted/70 cursor-pointer transition">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Users className="w-3.5 h-3.5 text-purple-600" />
+                      <span className="font-medium text-sm">{partner.profiles?.name || 'משתמש'}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        עד {new Date(partner.expires_at).toLocaleDateString('he-IL')}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{partner.description}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground italic">אין בקשות פעילות</div>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+};
+
+const SharedSessionsSection = () => {
+  const { data: favoriteCourses = [] } = useUserFavoriteCourses();
+  return (
+    <Card className="rounded-xl shadow-md hover:shadow-lg transition h-full flex flex-col">
+      <CardHeader className="bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-t-xl">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Video className="w-5 h-5" />
+          מפגשים משותפים
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[300px]">
+        {favoriteCourses.length === 0 && (
+          <div className="text-center py-4 text-muted-foreground">לא שמרת קורסים לעקוב אחריהם</div>
+        )}
+        {favoriteCourses.map((course) => {
+          const { data: sessions = [], isLoading } = useSharedSessions(course.course_id);
+          return (
+            <div key={course.course_id} className="mb-3">
+              <div className="font-bold text-green-700 text-xs mb-1">{course.courses?.name_he || course.name_he}</div>
+              {isLoading ? (
+                <div className="animate-pulse h-8 bg-muted rounded-lg"></div>
+              ) : sessions.length > 0 ? (
+                sessions.map((session) => (
+                  <div key={session.id} className="p-2 border rounded-lg mb-1 bg-muted/40 hover:bg-green-100 dark:hover:bg-zinc-800 cursor-pointer transition">
+                    <div className="flex items-center gap-2">
+                      <Video className="w-4 h-4 text-green-600" />
+                      <span className="font-medium text-sm">{session.title}</span>
+                      <Badge variant="secondary" className="text-xs">{session.platform || 'פלטפורמה'}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{session.description}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground italic">אין מפגשים פעילים</div>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 };
 

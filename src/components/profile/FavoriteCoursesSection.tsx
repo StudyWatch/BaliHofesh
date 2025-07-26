@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom'; // ✅ חשוב
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -65,13 +65,24 @@ const FavoriteCoursesSection: React.FC<FavoriteCoursesProps> = ({
           <div className="space-y-3">
             {courses.slice(0, 3).map((course: any) => {
               const courseId = course.courses?.id || course.course_id || course.id;
-              const courseSlug = course.courses?.slug || course.slug || '';
-              const courseUrl = `/courses/${courseId}`;
+              const courseSlug = course.courses?.slug;
+              const courseName = course.courses?.name_he || 'קורס ללא שם';
+              const institutionName = course.courses?.institutions?.name_he || '';
+              const institutionColor = course.courses?.institutions?.color || '#3B82F6';
+              const courseCode = course.courses?.code;
+              const semester = course.semester;
+              const status = course.status === 'active' ? 'פעיל' : 'לא פעיל';
+              const statusVariant = course.status === 'active' ? 'default' : 'outline';
+
+              const courseUrl = courseSlug
+                ? `/course/${courseSlug}`
+                : `/course/${courseId}`;
 
               return (
                 <Link
                   key={courseId}
                   to={courseUrl}
+                  title={`מעבר לקורס: ${courseName}`}
                   className="block group p-4 border rounded-xl hover:shadow-md transition-all duration-300 hover:border-primary/30"
                 >
                   <div className="flex items-center justify-between">
@@ -79,24 +90,26 @@ const FavoriteCoursesSection: React.FC<FavoriteCoursesProps> = ({
                       <div className="flex items-center gap-3 mb-2">
                         <div
                           className="w-3 h-3 rounded-full"
-                          style={{
-                            backgroundColor: course.courses?.institutions?.color || '#3B82F6',
-                          }}
+                          style={{ backgroundColor: institutionColor }}
                         />
                         <h4 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                          {course.courses?.name_he}
+                          {courseName}
                         </h4>
                       </div>
 
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <GraduationCap className="w-3 h-3" />
-                          {course.courses?.institutions?.name_he}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {course.semester}
-                        </span>
+                        {institutionName && (
+                          <span className="flex items-center gap-1">
+                            <GraduationCap className="w-3 h-3" />
+                            {institutionName}
+                          </span>
+                        )}
+                        {semester && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {semester}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -104,14 +117,13 @@ const FavoriteCoursesSection: React.FC<FavoriteCoursesProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 mt-3">
-                    <Badge variant="secondary" className="text-xs">
-                      {course.courses?.code}
-                    </Badge>
-                    <Badge
-                      variant={course.status === 'active' ? 'default' : 'outline'}
-                      className="text-xs"
-                    >
-                      {course.status === 'active' ? 'פעיל' : 'לא פעיל'}
+                    {courseCode && (
+                      <Badge variant="secondary" className="text-xs">
+                        {courseCode}
+                      </Badge>
+                    )}
+                    <Badge variant={statusVariant} className="text-xs">
+                      {status}
                     </Badge>
                   </div>
                 </Link>

@@ -23,8 +23,6 @@ interface StoreProduct {
   status: 'available' | 'out-of-stock';
 }
 
-const categories = ['חטיפים', 'ציוד', 'טכנולוגיה', 'ספרים', 'כלי כתיבה'];
-
 const StoreManagement = () => {
   const [products, setProducts] = useState<StoreProduct[]>([
     {
@@ -59,7 +57,8 @@ const StoreManagement = () => {
       category: 'ספרים',
       link: 'https://example.com/book',
       status: 'out-of-stock'
-    }
+    },
+    // הוסף כאן מוצרים נוספים לדוגמה/מ-DB
   ]);
   const [editingProduct, setEditingProduct] = useState<StoreProduct | null>(null);
   const [showDescription, setShowDescription] = useState(false);
@@ -67,20 +66,34 @@ const StoreManagement = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  // אוסף קטגוריות ייחודיות ודינאמיות מהמוצרים עצמם (trim לרווחים מיותרים)
+  const uniqueCategories = Array.from(
+    new Set(
+      products
+        .map(p => (p.category || '').trim())
+        .filter(Boolean)
+    )
+  );
+
   // Filter products based on search and filters
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.nameHe.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.nameEn.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !categoryFilter || product.category === categoryFilter;
+    const matchesSearch =
+      product.nameHe.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.nameEn.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      !categoryFilter ||
+      (product.category && product.category.trim() === categoryFilter.trim());
     const matchesStatus = !statusFilter || product.status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const handleSaveProduct = (productData: Partial<StoreProduct>) => {
     if (editingProduct) {
-      setProducts(prev => prev.map(product =>
-        product.id === editingProduct.id ? { ...product, ...productData } : product
-      ));
+      setProducts(prev =>
+        prev.map(product =>
+          product.id === editingProduct.id ? { ...product, ...productData } : product
+        )
+      );
     } else {
       const newProduct: StoreProduct = {
         id: Date.now().toString(),
@@ -132,7 +145,7 @@ const StoreManagement = () => {
               </DialogHeader>
               <StoreProductForm
                 product={editingProduct}
-                categories={categories}
+                categories={uniqueCategories}
                 onSave={handleSaveProduct}
               />
             </DialogContent>
@@ -171,7 +184,8 @@ const StoreManagement = () => {
                 <SelectValue placeholder="כל הקטגוריות" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((category) => (
+                <SelectItem value="">כל הקטגוריות</SelectItem>
+                {uniqueCategories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>
@@ -246,7 +260,7 @@ const StoreManagement = () => {
                           </DialogHeader>
                           <StoreProductForm
                             product={product}
-                            categories={categories}
+                            categories={uniqueCategories}
                             onSave={handleSaveProduct}
                           />
                         </DialogContent>

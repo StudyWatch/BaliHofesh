@@ -67,7 +67,7 @@ const WelcomeBanner: React.FC = () => {
             aria-label="סגור"
           >×</button>
 
-          <div className="relative z-10 flex flex-col items-center text-center gap-2">
+          <div className="relative z-10 flex flex-col items-center text-center gap-2" dir="rtl">
             <h2 className="text-2xl font-bold text-purple-800">ברוכים הבאים ל־BaliHofesh</h2>
             <p className="text-gray-700 text-sm mb-4">למדו חכם יותר – הירשמו עכשיו בחינם!</p>
 
@@ -77,19 +77,20 @@ const WelcomeBanner: React.FC = () => {
               <p className="text-gray-600 text-sm max-w-xs">{slides[current].desc}</p>
             </div>
 
+            {/* חצים מעודכנים */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              <button
-                onClick={() => setCurrent((current + 1) % slides.length)}
-                className="text-3xl text-purple-400 hover:text-purple-700"
-                aria-label="הבא"
-              >›</button>
-            </div>
-            <div className="absolute left-4 top-1/2 -translate-y-1/2">
               <button
                 onClick={() => setCurrent((current - 1 + slides.length) % slides.length)}
                 className="text-3xl text-purple-400 hover:text-purple-700"
                 aria-label="הקודם"
-              >‹</button>
+              >⟸</button>
+            </div>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2">
+              <button
+                onClick={() => setCurrent((current + 1) % slides.length)}
+                className="text-3xl text-purple-400 hover:text-purple-700"
+                aria-label="הבא"
+              >⟹</button>
             </div>
 
             <div className="flex gap-2 my-2">

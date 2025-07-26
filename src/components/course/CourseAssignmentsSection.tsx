@@ -6,20 +6,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { BookOpen, Calendar as CalendarIcon, Edit, Trash2, Plus } from 'lucide-react';
+import { BookOpen, Calendar as CalendarIcon, Edit, Trash2, Plus, MoreVertical } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/App';
 import { format } from 'date-fns';
 
 const mamanNumbers = ['11', '12', '13', '14', '15', '16', '17', '18'];
 const mamachNumbers = ['01', '02', '03', '04', '05', '06', '07'];
 
 const assignmentTypes = [
-  { value: 'maman', label: 'ממ"ן', icon: '📋' },
-  { value: 'mamach', label: 'ממ"ח', icon: '💻' },
-  { value: 'homework', label: 'עבודת בית', icon: '📝' },
-  { value: 'project', label: 'פרויקט', icon: '💼' },
-  { value: 'essay', label: 'חיבור', icon: '📄' }
+  { value: 'maman', label: 'ממ"ן', icon: '📋', color: '#f97316' },
+  { value: 'mamach', label: 'ממ"ח', icon: '💻', color: '#8b5cf6' },
+  { value: 'homework', label: 'עבודת בית', icon: '📝', color: '#3b82f6' },
+  { value: 'project', label: 'פרויקט', icon: '💼', color: '#10b981' },
+  { value: 'essay', label: 'חיבור', icon: '📄', color: '#ec4899' }
 ];
 
 interface Assignment {
@@ -35,6 +36,11 @@ interface Assignment {
   created_at: string;
   updated_at: string;
   assignment_number?: string | null;
+  creator_profile?: {
+    id: string;
+    name: string;
+    avatar_url?: string;
+  };
 }
 
 interface AssignmentFormData {
@@ -51,20 +57,24 @@ interface CourseAssignmentsSectionProps {
   courseName: string;
 }
 
+// קריאה עם JOIN ל-profiles
 const useCourseAssignments = (courseId: string) => {
   return useQuery({
     queryKey: ['course-assignments', courseId],
     queryFn: async () => {
+      if (!courseId) return [];
       const { data, error } = await supabase
         .from('course_assignments')
-        .select('*')
+        .select(`
+          *,
+          creator_profile:created_by (
+            id, name, avatar_url
+          )
+        `)
         .eq('course_id', courseId)
         .order('due_date', { ascending: true });
       if (error) throw error;
-      return (data as any[]).map(row => ({
-        ...row,
-        type: row.assignment_type,
-      })) as Assignment[];
+      return data as Assignment[];
     },
     enabled: !!courseId,
   });
@@ -75,16 +85,20 @@ const useCreateAssignment = () => {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (assignmentData: Omit<Assignment, 'id' | 'created_at' | 'updated_at'>) => {
-      const user = await supabase.auth.getUser();
+    mutationFn: async (assignmentData: Omit<Assignment, 'id' | 'created_at' | 'updated_at' | 'creator_profile'>) => {
+      // השג את המשתמש
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('יש להתחבר');
       const { data, error } = await supabase
         .from('course_assignments')
         .insert({
           ...assignmentData,
-          created_by: user.data.user?.id,
+          created_by: user.id,
           verified: false,
         })
-        .select()
+        .select(`
+          *, creator_profile:created_by (id, name, avatar_url)
+        `)
         .single();
       if (error) throw error;
       return data as Assignment;
@@ -93,8 +107,8 @@ const useCreateAssignment = () => {
       queryClient.invalidateQueries({ queryKey: ['course-assignments', data.course_id] });
       toast({ title: "עבודה נוספה", description: "העבודה נוספה בהצלחה" });
     },
-    onError: () => {
-      toast({ title: "שגיאה", description: "לא ניתן להוסיף את העבודה כרגע", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "שגיאה", description: err?.message || "שגיאה", variant: "destructive" });
     }
   });
 };
@@ -105,13 +119,14 @@ const useUpdateAssignment = () => {
 
   return useMutation({
     mutationFn: async ({ id, ...updateData }: Partial<Assignment> & { id: string }) => {
-      const user = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('יש להתחבר');
       const { data, error } = await supabase
         .from('course_assignments')
         .update({
           ...updateData,
           updated_at: new Date().toISOString(),
-          updated_by: user.data.user?.id,
+          updated_by: user.id,
         })
         .eq('id', id)
         .select()
@@ -123,8 +138,8 @@ const useUpdateAssignment = () => {
       queryClient.invalidateQueries({ queryKey: ['course-assignments', data.course_id] });
       toast({ title: "עבודה עודכנה", description: "העבודה עודכנה בהצלחה" });
     },
-    onError: () => {
-      toast({ title: "שגיאה", description: "לא ניתן לעדכן את העבודה כרגע", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "שגיאה", description: err?.message || "שגיאה", variant: "destructive" });
     }
   });
 };
@@ -134,7 +149,7 @@ const useDeleteAssignment = () => {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id }: { id: string }) => {
       const { error } = await supabase
         .from('course_assignments')
         .delete()
@@ -146,15 +161,25 @@ const useDeleteAssignment = () => {
       queryClient.invalidateQueries({ queryKey: ['course-assignments'] });
       toast({ title: "עבודה נמחקה", description: "העבודה נמחקה בהצלחה" });
     },
-    onError: () => {
-      toast({ title: "שגיאה", description: "לא ניתן למחוק את העבודה כרגע", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "שגיאה", description: err?.message || "שגיאה", variant: "destructive" });
     }
   });
 };
 
 const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ courseId, courseName }) => {
+  const { user, isAdmin } = useAuth() as { user: any; isAdmin: boolean };
+  const currentUserId = user?.id || '';
+
+  const { data: assignments = [], isLoading } = useCourseAssignments(courseId);
+  const createAssignmentMutation = useCreateAssignment();
+  const updateAssignmentMutation = useUpdateAssignment();
+  const deleteAssignmentMutation = useDeleteAssignment();
+  const { toast } = useToast();
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [showActions, setShowActions] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<AssignmentFormData>({
     assignment_type: 'maman',
@@ -164,12 +189,6 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
     due_date: new Date(),
     due_time: '23:59',
   });
-
-  const { data: assignments = [], isLoading } = useCourseAssignments(courseId);
-  const createAssignmentMutation = useCreateAssignment();
-  const updateAssignmentMutation = useUpdateAssignment();
-  const deleteAssignmentMutation = useDeleteAssignment();
-  const { toast } = useToast();
 
   const resetForm = () => setFormData({
     assignment_type: 'maman',
@@ -183,13 +202,14 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
   const handleSubmit = async () => {
     let title = formData.title.trim();
     let assignment_number = formData.assignment_number;
+    // עיצוב כותרת חכם לממן וממח
     if (formData.assignment_type === 'maman' && assignment_number) title = `ממ״ן ${assignment_number}`;
     if (formData.assignment_type === 'mamach' && assignment_number) title = `ממ״ח ${assignment_number}`;
     if (!title || (['maman', 'mamach'].includes(formData.assignment_type) && !assignment_number)) {
       toast({ title: "שגיאה", description: "יש למלא את כל השדות הנדרשים", variant: "destructive" });
       return;
     }
-    const assignmentData = {
+    const assignmentData: Omit<Assignment, 'id' | 'created_at' | 'updated_at' | 'creator_profile'> = {
       course_id: courseId,
       title,
       assignment_type: formData.assignment_type,
@@ -197,6 +217,8 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
       description: formData.description,
       due_date: format(formData.due_date, 'yyyy-MM-dd'),
       due_time: formData.due_time,
+      created_by: currentUserId,
+      verified: false,
     };
     try {
       if (editingAssignment) {
@@ -209,18 +231,18 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
       setIsAddDialogOpen(false);
       setEditingAssignment(null);
       resetForm();
-    } catch {
-      toast({ title: "שגיאה", description: "לא ניתן לשמור את העבודה כרגע", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err?.message || "שגיאה בשמירה", variant: "destructive" });
     }
   };
 
   const handleEdit = (assignment: Assignment) => {
-    setEditingAssignment(assignment);
     let assignment_number: string = assignment.assignment_number || '';
     if (!assignment_number && assignment.assignment_type === 'maman' && assignment.title.match(/(\d{2})$/))
       assignment_number = assignment.title.match(/(\d{2})$/)?.[1] || '';
     if (!assignment_number && assignment.assignment_type === 'mamach' && assignment.title.match(/(\d{2})$/))
       assignment_number = assignment.title.match(/(\d{2})$/)?.[1] || '';
+    setEditingAssignment(assignment);
     setFormData({
       assignment_type: assignment.assignment_type,
       assignment_number,
@@ -232,63 +254,128 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
     setIsAddDialogOpen(true);
   };
 
-  const handleDelete = async (assignmentId: string) => {
-    if (window.confirm('האם למחוק את העבודה?')) {
-      await deleteAssignmentMutation.mutateAsync(assignmentId);
+  const handleDelete = async (assignment: Assignment) => {
+    const isOwner = assignment.creator_profile?.id === currentUserId;
+    if (!(isAdmin || isOwner)) {
+      toast({ title: 'שגיאה', description: 'רק יוצר המטלה או מנהל יכול למחוק מטלה זו.', variant: 'destructive' });
+      return;
     }
+    if (!window.confirm('האם למחוק את העבודה?')) return;
+    await deleteAssignmentMutation.mutateAsync({ id: assignment.id });
   };
 
+  // עיצוב קומפקטי וצבעוני
+  const getTypeMeta = (type: string) =>
+    assignmentTypes.find(t => t.value === type) || assignmentTypes[0];
+
   return (
-    <div className="w-full">
+    <div className="w-full" dir="rtl">
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center font-bold text-lg gap-2">
           <BookOpen className="w-5 h-5 text-indigo-600" />
           <span>עבודות וממ"נים</span>
         </div>
-        <button
-          className="rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:to-blue-800 w-9 h-9 flex items-center justify-center text-white shadow transition"
-          title="הוסף מטלה"
-          onClick={() => { resetForm(); setEditingAssignment(null); setIsAddDialogOpen(true); }}
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+        {user && (
+          <button
+            className="rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:to-blue-800 w-9 h-9 flex items-center justify-center text-white shadow transition"
+            title="הוסף מטלה"
+            onClick={() => { resetForm(); setEditingAssignment(null); setIsAddDialogOpen(true); }}
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
       </div>
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-400" />
-        </div>
-      ) : assignments.length === 0 ? (
-        <div className="text-center text-gray-500 p-6 flex flex-col items-center">
-          <BookOpen className="w-12 h-12 text-gray-300 mb-2" />
-          <div className="font-bold text-base">אין מטלות או ממ"נים</div>
-          <div className="text-xs text-gray-400">הוסף ממ"ן או עבודה עכשיו</div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {assignments.map((assignment) => (
-            <div key={assignment.id} className="bg-white border border-gray-200 rounded-lg p-2 flex flex-col shadow-sm hover:shadow transition min-h-[74px]">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xl">{assignmentTypes.find(t => t.value === assignment.assignment_type)?.icon || '📝'}</span>
-                <div className="flex gap-1">
-                  <button className="text-indigo-500 hover:text-indigo-700" title="ערוך" onClick={() => handleEdit(assignment)}>
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button className="text-red-500 hover:text-red-700" title="מחק" onClick={() => handleDelete(assignment.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="font-semibold text-[15px] truncate" title={assignment.title}>
-                {assignment.title}
-              </div>
-              <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                <CalendarIcon className="w-3 h-3" />
-                {format(new Date(assignment.due_date), 'dd/MM')}
-              </div>
-            </div>
-          ))}
+      {!user && (
+        <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg mb-3 text-orange-700 font-bold justify-center">
+          נא להתחבר כדי להוסיף או לערוך מטלות.
         </div>
       )}
+      {/* קומפקטי, צבעוני, RTL */}
+      <div className="w-full" dir="rtl">
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-400" />
+          </div>
+        ) : assignments.length === 0 ? (
+          // תצוגה מיוחדת כשאין עבודות או ממ"נים
+          <div className="flex flex-col items-center justify-center p-7 rounded-2xl border shadow bg-gradient-to-br from-blue-50 to-white text-center mx-auto mt-4 max-w-lg">
+            <BookOpen className="w-12 h-12 text-blue-300 mb-3" />
+            <div className="font-bold text-xl text-gray-700 mb-1">אין מטלות או ממ"נים</div>
+            <div className="text-sm text-gray-400">הוסף ממ"ן או עבודה חדשה עכשיו</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3" dir="rtl">
+            {assignments
+              .slice()
+              .sort((a, b) =>
+                new Date(`${a.due_date}T${a.due_time || '23:59'}`).getTime() -
+                new Date(`${b.due_date}T${b.due_time || '23:59'}`).getTime()
+              )
+              .map((assignment) => {
+                const typeMeta = getTypeMeta(assignment.assignment_type);
+                const isOwner = assignment.creator_profile?.id === currentUserId;
+                const canDelete = isAdmin || isOwner;
+
+                return (
+                  <div
+                    key={assignment.id}
+                    className="relative rounded-2xl p-3 shadow-md hover:shadow-xl transition-all border border-gray-200 bg-white overflow-hidden group"
+                    style={{
+                      background: `linear-gradient(135deg, ${typeMeta.color}11 0%, white 70%)`,
+                      borderInlineStart: `4px solid ${typeMeta.color}`,
+                    }}
+                  >
+                    {/* רקע אייקון ענק חצי שקוף */}
+                    <div className="absolute top-2 left-3 text-6xl opacity-10 pointer-events-none select-none" style={{ color: typeMeta.color }}>
+                      {typeMeta.icon}
+                    </div>
+                    <div className="flex items-center gap-2 mb-2 z-10">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-lg shadow"
+                        style={{ backgroundColor: typeMeta.color }}
+                      >
+                        {typeMeta.icon}
+                      </div>
+                      <div className="text-base font-semibold text-gray-900 truncate max-w-[110px]" title={assignment.title}>
+                        {assignment.title}
+                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="ml-auto text-gray-400 hover:text-indigo-600 p-1 transition"
+                            onClick={() => setShowActions(assignment.id === showActions ? null : assignment.id)}
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent side="left" align="end" className="bg-white rounded-xl shadow-lg p-2 w-24 z-40 animate-fade-in-up" dir="rtl">
+                          <button
+                            className="flex w-full items-center gap-1 text-indigo-500 hover:text-indigo-700 px-2 py-1"
+                            onClick={() => { setShowActions(null); handleEdit(assignment); }}>
+                            <Edit className="w-4 h-4" /> עריכה
+                          </button>
+                          {canDelete && (
+                            <button
+                              className="flex w-full items-center gap-1 text-red-500 hover:text-red-700 px-2 py-1"
+                              onClick={() => { setShowActions(null); handleDelete(assignment); }}>
+                              <Trash2 className="w-4 h-4" /> מחיקה
+                            </button>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-medium text-gray-600 z-10">
+                      <CalendarIcon className="w-4 h-4" />
+                      <span>{format(new Date(assignment.due_date), 'dd/MM')}</span>
+                      <span className="text-gray-400">|</span>
+                      <span>{assignment.due_time?.slice(0, 5)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
 
       {/* Dialog Add/Edit */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -320,7 +407,6 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
                   ))}
                 </SelectContent>
               </Select>
-
               {formData.assignment_type === 'maman' && (
                 <Select
                   value={formData.assignment_number || ''}
@@ -337,7 +423,6 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
                   </SelectContent>
                 </Select>
               )}
-
               {formData.assignment_type === 'mamach' && (
                 <Select
                   value={formData.assignment_number || ''}
@@ -354,7 +439,6 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
                   </SelectContent>
                 </Select>
               )}
-
               {!(formData.assignment_type === 'maman' || formData.assignment_type === 'mamach') && (
                 <Input
                   id="title"
@@ -368,8 +452,7 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
                 />
               )}
             </div>
-
-            {/* שורה של תאריך ואז שעה תמיד! */}
+            {/* תאריך + שעה */}
             <div className="grid grid-cols-2 gap-2 items-center mb-2">
               <Popover>
                 <PopoverTrigger asChild>
@@ -398,7 +481,6 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
                 placeholder="שעה"
               />
             </div>
-
             <Textarea
               id="description"
               value={formData.description}
@@ -407,7 +489,6 @@ const CourseAssignmentsSection: React.FC<CourseAssignmentsSectionProps> = ({ cou
               rows={2}
               className="mt-1 text-base"
             />
-
             <div className="flex justify-between pt-3">
               <button type="button" onClick={() => { setIsAddDialogOpen(false); setEditingAssignment(null); resetForm(); }}
                 className="text-base border border-gray-300 rounded px-4 py-2 bg-white">ביטול</button>

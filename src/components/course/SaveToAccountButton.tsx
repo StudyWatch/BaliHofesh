@@ -1,3 +1,5 @@
+// src/components/SaveToAccountButton.tsx
+
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,7 +31,6 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // בדיקת קורס שמור
   const { data: savedCourse, refetch } = useQuery({
     queryKey: ['user-course-progress', courseId],
     queryFn: async () => {
@@ -46,10 +47,8 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
     }
   });
 
-  // שליפת סמסטרים עדכניים
   const { data: semesters = [] } = useRelevantSemesters();
 
-  // הוספת קורס למועדפים
   const handleSave = async () => {
     if (!selectedSemester) {
       toast({
@@ -63,6 +62,7 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user');
+
       const { error } = await supabase
         .from('user_course_progress')
         .insert({
@@ -73,15 +73,22 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
           semester: selectedSemester,
           is_favorite: true
         });
+
       if (error) throw error;
+
       await queryClient.invalidateQueries({ queryKey: ['user-course-progress'] });
-      refetch();
+      await queryClient.invalidateQueries({ queryKey: ['my-courses'] });
+      await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+
       toast({
         title: "🎉 הקורס נשמר בהצלחה!",
         description: `הקורס "${courseName}" נוסף לסמסטר "${selectedSemester}".`
       });
+
       setIsDialogOpen(false);
       setSelectedSemester('');
+      refetch();
+
     } catch (err) {
       toast({
         title: "שגיאה בשמירה",
@@ -93,29 +100,44 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
     }
   };
 
-  // מחיקת קורס מהמועדפים
   const handleRemove = async () => {
     setIsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user');
-      const { error } = await supabase
+
+      const { data: deletedRows, error } = await supabase
         .from('user_course_progress')
         .delete()
         .eq('user_id', user.id)
-        .eq('course_id', courseId);
+        .eq('course_id', courseId)
+        .select();
+
       if (error) throw error;
+      if (!deletedRows || deletedRows.length === 0) {
+        throw new Error('לא נמצאה רשומה למחיקה');
+      }
+
       await queryClient.invalidateQueries({ queryKey: ['user-course-progress'] });
-      refetch();
+      await queryClient.invalidateQueries({ queryKey: ['my-courses'] });
+      await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      await queryClient.invalidateQueries();
+
       toast({
-        title: "הקורס הוסר מהמועדפים",
+        title: "הקורס הוסר מהחשבון",
         description: `הקורס "${courseName}" הוסר בהצלחה.`,
       });
+
       setShowDeleteDialog(false);
-    } catch (err) {
+      setIsDialogOpen(false);
+      setSelectedSemester('');
+      await refetch();
+
+    } catch (err: any) {
+      console.error('שגיאה במחיקה:', err.message);
       toast({
         title: "שגיאה בהסרה",
-        description: "לא הצלחנו להסיר את הקורס. נסה שוב.",
+        description: err.message || "לא הצלחנו להסיר את הקורס. נסה שוב.",
         variant: "destructive"
       });
     } finally {
@@ -123,33 +145,31 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
     }
   };
 
-  // מצב: כבר במועדפים
   if (savedCourse) {
     return (
-      <div className="flex flex-col gap-4" dir="rtl">
+      <div className="flex flex-col gap-3" dir="rtl">
         <div className="flex items-center gap-2">
           <CheckCircle className="w-5 h-5 text-green-600" />
-          <Badge className="bg-green-100 text-green-700 px-3 py-1 text-md shadow-sm border border-green-200">
-            שמור לחשבון {savedCourse.semester ? `(${savedCourse.semester})` : ""}
+          <Badge className="bg-green-100 text-green-700 px-3 py-1 text-md">
+            שמור ({savedCourse.semester})
           </Badge>
         </div>
         <Button
           onClick={() => setShowDeleteDialog(true)}
           disabled={isLoading}
           variant="outline"
-          className="w-full mt-2 text-red-600 border-red-400 hover:bg-red-50 flex gap-2 justify-center items-center font-bold"
+          className="w-full mt-2 text-red-600 border-red-500 hover:bg-red-50 flex gap-2 justify-center items-center"
         >
           <Trash2 className="w-4 h-4" />
-          {isLoading ? 'מסיר...' : 'הסר קורס מהמועדפים'}
+          {isLoading ? 'מסיר...' : 'הסר קורס מהחשבון'}
         </Button>
 
-        {/* דיאלוג אישור מחיקה */}
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent className="sm:max-w-md" dir="rtl">
             <DialogHeader>
               <DialogTitle>אישור הסרה</DialogTitle>
               <DialogDescription>
-                האם אתה בטוח שברצונך להסיר את הקורס <b>{courseName}</b> מהמועדפים שלך?
+                האם אתה בטוח שברצונך להסיר את הקורס <b>{courseName}</b> מהחשבון שלך?
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2 mt-4">
@@ -175,23 +195,22 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
     );
   }
 
-  // מצב: טרם נשמר
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
         <Button
           size="lg"
-          className="bg-blue-600 text-white rounded-xl px-8 py-3 font-semibold shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-blue-600 text-white rounded-lg px-8 py-3 font-medium shadow-lg hover:bg-blue-700 hover:shadow-xl transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           <BookmarkPlus className="w-5 h-5 ml-2" />
           שמור קורס לחשבון
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md rounded-xl" dir="rtl">
+      <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="font-extrabold">שמירת קורס לחשבון</DialogTitle>
+          <DialogTitle>שמירת קורס לחשבון</DialogTitle>
           <DialogDescription>
-            באיזה סמסטר תרצה לשייך את הקורס <b>{courseName}</b>?
+            באיזה סמסטר תרצה לשייך את הקורס "{courseName}"?
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 mt-2">
@@ -221,7 +240,7 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
             <Button
               onClick={handleSave}
               disabled={!selectedSemester || isLoading}
-              className="flex-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-bold"
+              className="flex-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
             >
               {isLoading ? 'שומר...' : 'שמור קורס'}
             </Button>
