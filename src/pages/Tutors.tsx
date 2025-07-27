@@ -10,64 +10,102 @@ import TutorApplicationForm from '@/components/forms/TutorApplicationForm';
 
 const defaultAvatar = "https://cdn-icons-png.flaticon.com/512/3135/3135789.png";
 
+// טיפוס קורס
+type CourseType = { id: string; name_he: string; category?: string };
+
+// עיבוד קורסים מכל מורה (מ subjects וגם מ tutor_courses)
+function extractAllCourses(tutors: any[]): CourseType[] {
+  const allCourses: CourseType[] = [];
+  tutors.forEach((tutor) => {
+    // tutor_courses
+    if (Array.isArray(tutor.tutor_courses)) {
+      tutor.tutor_courses.forEach((tc: any) => {
+        if (tc.course && tc.course.id && tc.course.name_he) {
+          allCourses.push({
+            id: String(tc.course.id),
+            name_he: String(tc.course.name_he),
+            category: tc.course.category ? String(tc.course.category) : '',
+          });
+        }
+      });
+    }
+    // subjects (מחרוזות)
+    if (Array.isArray(tutor.subjects)) {
+      tutor.subjects.forEach((subject: string) => {
+        const codeMatch = subject.match(/\(([^)]+)\)/);
+        const name_he = subject.replace(/ \([^)]+\)/, '').replace(/ - ציון: \d+/, '');
+        allCourses.push({
+          id: codeMatch ? String(codeMatch[1]) : name_he,
+          name_he: name_he,
+          category: '', // אין קטגוריה במקרה זה
+        });
+      });
+    }
+  });
+  // מסנן כפולים לפי id
+  const unique = new Map<string, CourseType>();
+  allCourses.forEach(course => {
+    if (course.id && !unique.has(course.id)) unique.set(course.id, course);
+  });
+  return Array.from(unique.values()).sort((a, b) => a.name_he.localeCompare(b.name_he, 'he'));
+}
+
 const Tutors = () => {
   const navigate = useNavigate();
   const { dir } = useLanguage();
   const { data: tutors = [], isLoading } = useTutors();
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [showApplicationForm, setShowApplicationForm] = useState(false);
 
-  // כל הקטגוריות האפשריות – לוקח מהקורסים של כל מורה
-  const categories = useMemo(() => {
+  // כל הקורסים מכל המורים
+  const allCourses = useMemo<CourseType[]>(() => extractAllCourses(tutors), [tutors]);
+  // קטגוריות מתוך כל הקורסים (סינון ריקים)
+  const categories = useMemo<string[]>(() => {
     const set = new Set<string>();
-    tutors.forEach(tutor => {
-      tutor.tutor_courses?.forEach(tc => {
-        if (tc.course?.category) set.add(tc.course.category);
-      });
+    allCourses.forEach(course => {
+      if (course.category && course.category.length > 0) set.add(course.category);
     });
     return ['all', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'he'))];
-  }, [tutors]);
+  }, [allCourses]);
 
   // קורסים רלוונטיים לקטגוריה הנבחרת
-  const coursesInCategory = useMemo(() => {
-    let relevantCourses: { id: string; name_he: string }[] = [];
-    tutors.forEach(tutor => {
-      tutor.tutor_courses?.forEach(tc => {
-        if (
-          tc.course &&
-          (selectedCategory === 'all' || tc.course.category === selectedCategory)
-        ) {
-          relevantCourses.push({
-            id: tc.course.id,
-            name_he: tc.course.name_he,
+  const coursesInCategory = useMemo<CourseType[]>(() => {
+    return selectedCategory === 'all'
+      ? allCourses
+      : allCourses.filter(course => course.category === selectedCategory);
+  }, [allCourses, selectedCategory]);
+
+  // מורים מסוננים
+  const filteredTutors = useMemo(() => {
+    return tutors.filter((tutor: any) => {
+      let hasCategory = selectedCategory === 'all';
+      let hasCourse = !selectedCourse;
+
+      // בדיקה ב tutor_courses
+      if (Array.isArray(tutor.tutor_courses)) {
+        if (selectedCategory !== 'all') {
+          hasCategory = tutor.tutor_courses.some((tc: any) => tc.course?.category === selectedCategory);
+        }
+        if (selectedCourse) {
+          hasCourse = tutor.tutor_courses.some((tc: any) =>
+            String(tc.course?.id) === selectedCourse ||
+            String(tc.course?.code) === selectedCourse
+          );
+        }
+      }
+      // בדיקה גם על subjects
+      if (Array.isArray(tutor.subjects)) {
+        if (selectedCourse && !hasCourse) {
+          hasCourse = tutor.subjects.some((subj: string) => {
+            const codeMatch = subj.match(/\(([^)]+)\)/);
+            const id = codeMatch ? String(codeMatch[1]) : subj.replace(/ \([^)]+\)/, '').replace(/ - ציון: \d+/, '');
+            return id === selectedCourse;
           });
         }
-      });
+      }
+      return hasCategory && hasCourse;
     });
-    // מסנן כפולים
-    const unique = new Map<string, string>();
-    relevantCourses.forEach(({ id, name_he }) => {
-      if (!unique.has(id)) unique.set(id, name_he);
-    });
-    return Array.from(unique.entries()).map(([id, name_he]) => ({ id, name_he }))
-      .sort((a, b) => a.name_he.localeCompare(b.name_he, 'he'));
-  }, [tutors, selectedCategory]);
-
-  // סינון ראשי – קודם לפי קטגוריה, אחר כך לפי קורס
-  const filteredTutors = useMemo(() => {
-    let result = tutors;
-    if (selectedCategory !== 'all') {
-      result = result.filter(tutor =>
-        tutor.tutor_courses?.some(tc => tc.course?.category === selectedCategory)
-      );
-    }
-    if (selectedCourse) {
-      result = result.filter(tutor =>
-        tutor.tutor_courses?.some(tc => tc.course?.id === selectedCourse)
-      );
-    }
-    return result;
   }, [tutors, selectedCategory, selectedCourse]);
 
   return (
@@ -118,7 +156,7 @@ const Tutors = () => {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                {categories.map(category => (
+                {categories.map((category) => (
                   <Button
                     key={category}
                     variant={selectedCategory === category ? "default" : "outline"}
@@ -142,7 +180,7 @@ const Tutors = () => {
               <div className="flex flex-col md:flex-row gap-3 items-center">
                 <Search className="w-5 h-5 text-blue-500" />
                 <div className="flex flex-wrap gap-2 flex-1">
-                  {coursesInCategory.map(course => (
+                  {coursesInCategory.map((course) => (
                     <Badge
                       key={course.id}
                       variant={selectedCourse === course.id ? "default" : "outline"}
@@ -174,105 +212,106 @@ const Tutors = () => {
 
           {/* ---- תצוגת מורים ---- */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTutors.map((tutor, index) => (
-              <Card
-                key={tutor.id}
-                className="hover:shadow-xl transition-all duration-300 bg-white/90 backdrop-blur-sm hover:-translate-y-2 hover:scale-105 border-2 hover:border-blue-200"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 border flex items-center justify-center shadow">
-                      <img
-                        src={tutor.avatar_url ? tutor.avatar_url : defaultAvatar}
-                        alt={tutor.name}
-                        className="w-full h-full object-cover"
-                        style={{objectPosition: "center"}}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-lg text-gray-900">{tutor.name}</h3>
-                        {tutor.is_verified && (
-                          <Badge className="bg-green-500 text-white text-xs">
-                            מאומת
-                          </Badge>
-                        )}
-                        {tutor.is_online && (
-                          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" title="זמין כעת" />
-                        )}
+            {filteredTutors.map((tutor: any, index: number) => {
+              // שליפת קורסים מתוך הטקסט או אובייקטים
+              let displayCourses: string[] = [];
+              if (Array.isArray(tutor.tutor_courses) && tutor.tutor_courses.length > 0) {
+                displayCourses = tutor.tutor_courses
+                  .map((tc: any) => tc.course?.name_he)
+                  .filter((x: string | undefined): x is string => !!x);
+              } else if (Array.isArray(tutor.subjects) && tutor.subjects.length > 0) {
+                displayCourses = tutor.subjects.map((subj: string) =>
+                  subj.replace(/ \([^)]+\)/, '').replace(/ - ציון: \d+/, '')
+                );
+              }
+
+              return (
+                <Card
+                  key={tutor.id}
+                  className="hover:shadow-xl transition-all duration-300 bg-white/90 backdrop-blur-sm hover:-translate-y-2 hover:scale-105 border-2 hover:border-blue-200"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 border flex items-center justify-center shadow">
+                        <img
+                          src={tutor.avatar_url ? tutor.avatar_url : defaultAvatar}
+                          alt={tutor.name}
+                          className="w-full h-full object-cover"
+                          style={{objectPosition: "center"}}
+                        />
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                        <span className="font-semibold">{tutor.rating}</span>
-                        <span className="text-gray-600 text-sm">({tutor.reviews_count} ביקורות)</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {/* קטגוריות של המורה */}
-                        {tutor.tutor_courses?.map((tc, i) =>
-                          tc.course?.category ? (
-                            <Badge key={i} variant="outline" className="text-xs bg-purple-100 text-purple-800">
-                              {tc.course.category}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-lg text-gray-900">{tutor.name}</h3>
+                          {tutor.is_verified && (
+                            <Badge className="bg-green-500 text-white text-xs">
+                              מאומת
                             </Badge>
-                          ) : null
-                        )}
+                          )}
+                          {tutor.is_online && (
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" title="זמין כעת" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                          <span className="font-semibold">{tutor.rating}</span>
+                          <span className="text-gray-600 text-sm">({tutor.reviews_count} ביקורות)</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {displayCourses.map((cname, i) =>
+                            <Badge key={i} variant="secondary" className="text-xs">
+                              {cname}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                    {tutor.description}
-                  </p>
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                      {tutor.description}
+                    </p>
 
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {(tutor.tutor_courses || []).map((tc, i) =>
-                      tc.course ? (
-                        <Badge key={i} variant="secondary" className="text-xs">
-                          {tc.course.name_he}
-                        </Badge>
-                      ) : null
-                    )}
-                  </div>
-
-                  <div className="space-y-2 mb-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-gray-500" />
-                      <span>{tutor.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-gray-500" />
-                      <span>₪{tutor.hourly_rate} לשעה</span>
-                    </div>
-                    {tutor.availability && (
+                    <div className="space-y-2 mb-4 text-sm">
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        <span>{tutor.availability}</span>
+                        <MapPin className="w-4 h-4 text-gray-500" />
+                        <span>{tutor.location}</span>
                       </div>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-gray-500" />
+                        <span>₪{tutor.hourly_rate} לשעה</span>
+                      </div>
+                      {tutor.availability && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          <span>{tutor.availability}</span>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/tutor/${tutor.id}`)}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      <BookOpen className="w-4 h-4 mr-2" />
-                      פרופיל
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
-                      onClick={() => window.open(`tel:${tutor.phone || ''}`)}
-                    >
-                      <Phone className="w-4 h-4 mr-2" />
-                      צור קשר
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => navigate(`/tutor/${tutor.id}`)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        פרופיל
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600"
+                        onClick={() => window.open(`tel:${tutor.phone || ''}`)}
+                      >
+                        <Phone className="w-4 h-4 mr-2" />
+                        צור קשר
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {filteredTutors.length === 0 && !isLoading && (

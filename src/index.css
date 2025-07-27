@@ -8,35 +8,25 @@
   --gradient-exam: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   --gradient-institution: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
   --background: 0 0% 100%;  /* לבן מלא */
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 84% 4.9%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --radius: 0.5rem;
-  --sidebar-background: 0 0% 98%;
-  --sidebar-foreground: 240 5.3% 26.1%;
-  --sidebar-primary: 240 5.9% 10%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 240 4.8% 95.9%;
-  --sidebar-accent-foreground: 240 5.9% 10%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-ring: 217.2 10.6% 64.9%;
+  --card: 0 0% 100%;
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 222 47% 11%; /* כהה */
 }
-
+.dark {
+  --background: 220 18% 12%;
+  --foreground: 210 20% 90%;
+  --primary: 220 90% 66%;
+  --primary-foreground: 0 0% 100%;
+  --card: 220 15% 16%;
+  --card-foreground: 0 0% 100%;
+  --border: 220 20% 30%;
+  --input: 220 20% 30%;
+  --muted: 220 15% 20%;
+  --muted-foreground: 220 10% 65%;
+  --accent: 240 30% 25%;
+  --accent-foreground: 240 40% 90%;
+}
 html {
   font-family: 'Inter', system-ui, sans-serif;
   scroll-behavior: smooth;
@@ -68,11 +58,11 @@ html {
   animation: gradient-x 15s ease infinite;
 }
 
-/* Accessibility Button Styles */
+/* --------- Accessibility Button Styles (שמאל למטה) ---------- */
 .accessibility-button {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  left: 20px; /* שמאל */
   width: 50px;
   height: 50px;
   background: #2563eb;
@@ -88,236 +78,217 @@ html {
   align-items: center;
   justify-content: center;
 }
-
 .accessibility-button:hover {
   background: #1d4ed8;
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  transform: scale(1.09);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.23);
 }
-
 .accessibility-button:focus {
   outline: 3px solid #93c5fd;
   outline-offset: 2px;
 }
 
-/* ----- שדרוג תפריטים, מודלים ודיאלוגים ----- */
-
-/* כל המודלים/דיאלוגים/פופאפים */
-.dialog-overlay-light,
-.dialog-overlay,
-.modal-overlay,
-.popover-overlay,
-.menu-overlay,
-.menu-dropdown {
-  background-color: #fff !important;
-  backdrop-filter: none !important;
-  opacity: 1 !important;
-}
-
-/* תוכן דיאלוג/מודל/פופאפ */
+/* --------- Accessibility Dialog Styles ----------- */
 .dialog-content-improved,
 .dialog-content,
 .modal-content,
-.popover-content,
-.menu-content,
-.menu-list,
-.dropdown-content,
-.dropdown-menu {
-  background: #fff !important;
-  color: #1f2937 !important;
-  border-radius: 18px !important;
-  box-shadow: 0 24px 48px -12px rgba(0,0,0,0.16) !important;
+.accessibility-dialog {
+  background: #f6f7fa !important;
+  color: #1a202c !important;
+  border-radius: 22px !important;
+  box-shadow: 0 24px 48px -12px rgba(60,60,100,0.18) !important;
   border: 2px solid #e5e7eb !important;
   opacity: 1 !important;
+  direction: rtl;
+  min-width: 340px;
 }
 
-/* כותרות בכל סוגי הדיאלוגים/פופאפים/תפריטים */
 .dialog-title, .modal-title, .popover-title, .menu-title {
-  color: #111827 !important;
+  color: #22223b !important;
   font-weight: 700;
+  font-size: 2rem !important;
   background: none !important;
+  text-align: right;
+  direction: rtl;
 }
 
-/* אייקונים בתפריטים */
-.menu-item svg,
-.dropdown-item svg,
-.dialog-title svg,
-.menu-link svg {
-  color: #6366f1 !important;
-  opacity: 1 !important;
-}
-
-/* תפריט צד/נפתח */
-.sidebar,
-.menu {
+.card-content, .CardContent {
   background: #fff !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.10) !important;
-  border-radius: 16px !important;
-  border: 1px solid #e5e7eb !important;
-  color: #1f2937 !important;
-  opacity: 1 !important;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(100, 120, 220, 0.08);
+  margin-bottom: 1.2rem;
 }
 
-/* כפתורי תפריט בולטים */
-.menu-item,
-.menu-link,
-.dropdown-item {
-  background: none !important;
-  color: #1f2937 !important;
+.reset-accessibility-btn {
+  margin-top: 1.5rem;
+  font-weight: 700;
+  font-size: 1.09rem;
   border-radius: 8px;
-  transition: background 0.2s;
-}
-.menu-item:hover,
-.menu-link:hover,
-.dropdown-item:hover {
-  background: #f3f4f6 !important;
-  color: #111827 !important;
 }
 
-/* Highlight selection */
-.menu-item.active, .dropdown-item.active {
-  background: #dbeafe !important;
-  color: #1e40af !important;
+[dir='rtl'] .accessibility-dialog,
+[dir='rtl'] .DialogContent {
+  direction: rtl;
+  text-align: right;
 }
 
-/* Hero Section Title Contrast Fix - Much Better Visibility */
-.hero-title-improved {
+.accessibility-dialog label {
+  color: #1a202c !important;
+  font-weight: 500;
+  font-size: 1.04rem;
+}
+.accessibility-dialog .flex.items-center {
+  padding: 0.35rem 0.4rem;
+  border-radius: 10px;
+  margin-bottom: 0.2rem;
+  transition: background 0.17s;
+  background: transparent;
+}
+.accessibility-dialog .flex.items-center:hover {
+  background: #e9edfb !important;
+}
+.accessibility-dialog .switch:focus-visible {
+  outline: 2px solid #93c5fd;
+}
+.accessibility-dialog .text-gray-600,
+.accessibility-dialog .text-sm {
+  color: #596088 !important;
+}
+
+/* --- Switch חדש ומעודכן ליום ולילה (עם תאימות מלאה ל-RTL ולמצב כהה) --- */
+.switch {
+  border: 2px solid #b7bbcf;
+  background: #e8eafd;
+  width: 44px;
+  height: 24px;
+  margin-inline-end: 8px;
+  transition: all 0.18s;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.switch:focus {
+  outline: 2px solid #a2a4be !important;
+}
+.switch > span,
+.switch > .radix-switch-thumb {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), background 0.22s, box-shadow 0.18s;
+  background: #24243a !important;
+  box-shadow: 0 2px 8px rgba(70,70,90,0.12);
+  will-change: transform;
+}
+
+/* במצב דלוק ביום (רקע כחול, עיגול לבן) */
+.switch[data-state="checked"] {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+.switch[data-state="checked"] > span,
+.switch[data-state="checked"] > .radix-switch-thumb {
   background: #fff !important;
-  backdrop-filter: none !important;
-  padding: 1.5rem 2.5rem !important;
-  border-radius: 1.5rem !important;
-  border: 2px solid #e5e7eb !important;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.10) !important;
-  color: #1f2937 !important;
+  box-shadow: 0 2px 10px rgba(37,99,235,0.18);
+  transform: translateX(20px);
+}
+[dir="rtl"] .switch[data-state="checked"] > span,
+[dir="rtl"] .switch[data-state="checked"] > .radix-switch-thumb {
+  transform: translateX(-20px);
+}
+/* במצב כבוי ביום */
+.switch:not([data-state="checked"]) > span,
+.switch:not([data-state="checked"]) > .radix-switch-thumb {
+  background: #24243a !important;
+  transform: translateX(0);
+  box-shadow: 0 2px 8px rgba(70,70,90,0.12);
 }
 
-/* Accessibility Classes */
-body.accessibility-high-contrast {
-  filter: contrast(150%);
+/* --- מצב לילה (תחת .dark) --- */
+.dark .switch {
+  background: #222943;
+  border-color: #4657b2;
+}
+.dark .switch > span,
+.dark .switch > .radix-switch-thumb {
+  background: #bfc7ee !important;
+  box-shadow: 0 2px 10px #22316d11;
+}
+.dark .switch[data-state="checked"] {
+  background: #425fff !important;
+  border-color: #425fff !important;
+}
+.dark .switch[data-state="checked"] > span,
+.dark .switch[data-state="checked"] > .radix-switch-thumb {
+  background: #fff !important;
+  box-shadow: 0 2px 10px #6aa2ff33;
+  transform: translateX(20px);
+}
+[dir="rtl"].dark .switch[data-state="checked"] > span,
+[dir="rtl"].dark .switch[data-state="checked"] > .radix-switch-thumb {
+  transform: translateX(-20px);
+}
+.dark .switch:not([data-state="checked"]) > span,
+.dark .switch:not([data-state="checked"]) > .radix-switch-thumb {
+  background: #bfc7ee !important;
+  transform: translateX(0);
+  box-shadow: 0 2px 8px #22316d11;
+}
+.switch:hover, .dark .switch:hover {
+  box-shadow: 0 2px 14px #b5b9fb66;
+}
+.switch .radix-switch-thumb, 
+.switch > span {
+  pointer-events: none;
 }
 
-body.accessibility-black-white {
-  filter: grayscale(100%);
+/* Mobile improvements */
+@media (max-width: 700px) {
+  .dialog-content-improved,
+  .dialog-content,
+  .modal-content,
+  .accessibility-dialog {
+    border-radius: 10px !important;
+    padding: 0.8rem !important;
+    font-size: 0.98rem;
+    min-width: unset !important;
+  }
+  .dialog-title {
+    font-size: 1.25rem !important;
+  }
 }
 
-body.accessibility-highlight-links a {
-  background-color: yellow !important;
-  color: black !important;
-  font-weight: bold !important;
-}
-
-body.accessibility-readable-font {
-  font-family: 'Arial', sans-serif !important;
-}
-
-body.accessibility-pause-animations * {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-  scroll-behavior: auto !important;
-}
-
-body.accessibility-stop-flashing * {
-  animation: none !important;
-}
-
-body.accessibility-dark-mode {
-  filter: invert(1) hue-rotate(180deg);
-}
-
-body.accessibility-dark-mode img,
-body.accessibility-dark-mode video {
-  filter: invert(1) hue-rotate(180deg);
-}
+/* ---- שאר העיצובים שלא דורשים שינוי ---- */
 
 /* Custom gradients */
-.bg-gradient-primary {
-  background: var(--gradient-primary);
-}
-
-.bg-gradient-exam {
-  background: var(--gradient-exam);
-}
-
-.bg-gradient-institution {
-  background: var(--gradient-institution);
-}
+.bg-gradient-primary { background: var(--gradient-primary);}
+.bg-gradient-exam { background: var(--gradient-exam);}
+.bg-gradient-institution { background: var(--gradient-institution);}
 
 /* Animation classes */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.6s ease-out;
-}
-
-.animate-slide-up {
-  animation: slide-up 0.6s ease-out;
-}
-
-.delay-200 {
-  animation-delay: 200ms;
-}
-
-.delay-300 {
-  animation-delay: 300ms;
-}
-
-.delay-400 {
-  animation-delay: 400ms;
-}
-
-.delay-500 {
-  animation-delay: 500ms;
-}
+@keyframes fade-in { from { opacity: 0; transform: translateY(20px);} to {opacity: 1;transform: translateY(0);} }
+@keyframes slide-up { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: translateY(0);} }
+.animate-fade-in { animation: fade-in 0.6s ease-out; }
+.animate-slide-up { animation: slide-up 0.6s ease-out; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
 
 /* Line clamp utilities */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Store gradient animations */
-@keyframes store-shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
+@keyframes store-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 .animate-store-shimmer::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: 0; left: 0; width: 100%; height: 100%;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
   animation: store-shimmer 2s ease-in-out infinite;
 }
@@ -329,20 +300,17 @@ body.accessibility-dark-mode video {
   padding: 8px;
   margin-bottom: 24px;
 }
-
 .semester-tab {
   transition: all 0.3s ease;
   border-radius: 8px;
   position: relative;
   overflow: hidden;
 }
-
 .semester-tab.active {
   background: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transform: translateY(-1px);
 }
-
 .semester-tab.active::before {
   content: '';
   position: absolute;
@@ -366,7 +334,6 @@ body.accessibility-dark-mode video {
   flex-direction: column;
   align-items: center;
   gap: 1.3rem;
-  /* חשוב: למרכז גם בעמוד עם flex/center */
 }
 
 @media (max-width: 700px) {
@@ -376,7 +343,6 @@ body.accessibility-dark-mode video {
   }
 }
 
-/* כפתור הפלוס צף במרכז התחתון של הכרטיס */
 .assignments-widget .add-btn-fab {
   position: absolute;
   bottom: 1.15rem;
@@ -397,15 +363,23 @@ body.accessibility-dark-mode video {
   transition: background 0.15s, transform 0.12s;
   z-index: 3;
 }
-
 .assignments-widget .add-btn-fab:hover {
   background: #174ea6;
   transform: translateX(-50%) scale(1.09);
 }
-
-/* מרכז את כל התוכן */
 .assignments-widget .no-assignments,
 .assignments-widget h3,
 .assignments-widget p {
   text-align: center;
 }
+
+/* =========== Accessibility Classes on main =========== */
+main.accessibility-high-contrast { filter: contrast(150%) !important; }
+main.accessibility-black-white { filter: grayscale(100%) !important; }
+main.accessibility-highlight-links a { background-color: yellow !important; color: black !important; font-weight: bold !important; }
+main.accessibility-readable-font { font-family: 'Arial', sans-serif !important; }
+main.accessibility-pause-animations * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+main.accessibility-stop-flashing * { animation: none !important; }
+main.accessibility-dark-mode { filter: invert(1) hue-rotate(180deg) !important; }
+main.accessibility-dark-mode img,
+main.accessibility-dark-mode video { filter: invert(1) hue-rotate(180deg) !important; }

@@ -27,6 +27,8 @@ import {
   Lightbulb,
   ShoppingCart,
   ChevronDown,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import AuthDialog from '@/components/auth/AuthDialog';
 import MobileMenu from './MobileMenu';
@@ -56,6 +58,27 @@ const Header: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // מצב לילה עם שמירה ל-localStorage
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      if (localStorage.getItem('darkMode')) {
+        return localStorage.getItem('darkMode') === 'true';
+      }
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('darkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('darkMode', 'false');
+    }
+  }, [isDarkMode]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +116,7 @@ const Header: React.FC = () => {
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+    <header className="bg-white dark:bg-[#181f32] shadow-sm border-b border-gray-200 dark:border-[#232949] sticky top-0 z-40 transition-colors">
       <div className="container mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between h-16">
           {/* לוגו-טקסט דינמי */}
@@ -125,7 +148,7 @@ const Header: React.FC = () => {
               <Link
                 key={item.href}
                 to={item.href}
-                className="flex items-center space-x-1 space-x-reverse text-gray-700 hover:text-primary transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-50"
+                className="flex items-center space-x-1 space-x-reverse text-gray-700 dark:text-gray-100 hover:text-primary dark:hover:text-indigo-300 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-[#232949]"
               >
                 <item.icon className="w-4 h-4" />
                 <span>{item.label}</span>
@@ -143,7 +166,7 @@ const Header: React.FC = () => {
                   placeholder={dir === 'rtl' ? "חיפוש קורסים..." : "Search courses..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-gray-50 border-gray-200 focus:bg-white"
+                  className="pl-10 bg-gray-50 border-gray-200 focus:bg-white dark:bg-[#222844] dark:focus:bg-[#232949] dark:text-gray-100"
                 />
               </div>
             </form>
@@ -151,7 +174,33 @@ const Header: React.FC = () => {
 
           {/* Right Section */}
           <div className="flex items-center space-x-1 xs:space-x-2 sm:space-x-4 space-x-reverse">
-            {/* Language Toggle (רק בדסקטופ) */}
+            {/* --- כפתור מצב לילה/יום --- */}
+            <button
+              className={`
+                toggle-darkmode-btn mr-1 flex items-center justify-center rounded-full
+                transition border-2 border-transparent focus:outline-none
+                ${isDarkMode
+                  ? "bg-gradient-to-tr from-indigo-900 to-blue-800 shadow-indigo-800/20"
+                  : "bg-gradient-to-tr from-blue-100 to-white shadow-blue-200/30"}
+              `}
+              aria-label={isDarkMode ? "מצב יום" : "מצב לילה"}
+              title={isDarkMode ? "כבה מצב לילה" : "הפעל מצב לילה"}
+              type="button"
+              style={{
+                width: 42, height: 42, minWidth: 42, minHeight: 42, marginInlineEnd: 8,
+                fontSize: 23,
+                boxShadow: isDarkMode ? "0 4px 16px #17213b88" : "0 2px 8px #b4c1fd77",
+              }}
+              onClick={() => setIsDarkMode((v) => !v)}
+            >
+              {isDarkMode ? (
+                <Sun className="w-6 h-6 text-yellow-200" />
+              ) : (
+                <Moon className="w-6 h-6 text-blue-800" />
+              )}
+            </button>
+
+            {/* כפתור שפה */}
             <Button
               variant="ghost"
               size="sm"
@@ -167,7 +216,8 @@ const Header: React.FC = () => {
                 type="button"
                 className={`
                   relative rounded-full transition shadow-sm
-                  hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500/60
+                  hover:bg-blue-50 dark:hover:bg-[#21294e]
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/60
                   w-10 h-10 flex items-center justify-center
                 `}
                 aria-label={dir === 'rtl' ? 'התראות' : 'Notifications'}

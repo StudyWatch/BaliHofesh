@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import AccessibilityButton from "@/components/AccessibilityButton";
 import NotificationOrchestrator from "@/components/notifications/NotificationOrchestrator";
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 // דפים קיימים
 import Index from "./pages/Index";
@@ -27,9 +28,8 @@ import EmailVerificationPage from "./components/auth/EmailVerificationPage";
 import NotFound from "./pages/NotFound";
 import TutorDashboard from "@/components/tutors/TutorDashboard";
 import TermsOfUse from "./pages/TermsOfUse";
+import TutorTermsPage from "./pages/TutorTermsPage";
 import AuthCallbackHandler from "@/components/auth/AuthCallbackHandler";
-
-// דף "בקרוב"
 import ComingSoon from "@/components/ComingSoon";
 
 export const CartContext = createContext({});
@@ -199,7 +199,7 @@ const App = () => (
           <NotificationOrchestrator />
           <BrowserRouter>
             <div className="min-h-screen flex flex-col">
-              <main className="flex-1">
+              <main id="main-root" className="flex-1 min-h-[70vh]">
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/admin" element={<Admin />} />
@@ -215,24 +215,24 @@ const App = () => (
                   <Route path="/email-verification" element={<EmailVerificationPage />} />
                   <Route path="/my-courses" element={<MyCourses />} />
                   <Route path="/profile" element={<Profile />} />
-                  {/* Callback לאימות Supabase */}
                   <Route path="/auth/callback" element={<AuthCallbackHandler />} />
                   <Route path="/tutor-dashboard" element={
                     <TutorRoute>
                       <TutorDashboard />
                     </TutorRoute>
                   } />
-                  {/* כאן מתחיל העדכון: */}
+                  {/* דפים חנות והודעות בקרוב */}
                   <Route path="/store" element={<ComingSoon />} />
                   <Route path="/wishlist" element={<ComingSoon title="רשימת המשאלות תיפתח בקרוב!" />} />
                   <Route path="/shopping-cart" element={<ComingSoon title="העגלה תיפתח בקרוב!" />} />
                   {/* דף תנאי שימוש */}
                   <Route path="/terms" element={<TermsOfUse />} />
+                  <Route path="/tutors-terms" element={<TutorTermsPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
-              {/* פוטר קבוע עם קישור לתנאים */}
-              <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50">
+              <ScrollToTopButton />
+              <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50 flex flex-col sm:flex-row justify-center gap-2">
                 <a
                   href="/terms"
                   target="_blank"
@@ -240,6 +240,15 @@ const App = () => (
                   className="underline text-blue-600 hover:text-blue-800"
                 >
                   תנאי שימוש
+                </a>
+                <span className="mx-2 hidden sm:inline">|</span>
+                <a
+                  href="/tutors-terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-green-600 hover:text-green-800"
+                >
+                  תנאי שימוש למורים פרטיים
                 </a>
               </footer>
               <AccessibilityButton />

@@ -6,41 +6,49 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Star,
-  MapPin,
-  Clock,
-  Phone,
-  Mail,
-  Award,
-  BookOpen,
-  GraduationCap,
-  DollarSign,
-  Trophy,
-  Users,
-  Calendar
+  Star, MapPin, Clock, Phone, Mail, Award,
+  BookOpen, GraduationCap, DollarSign, Trophy,
+  Users, Calendar, Link as LinkIcon
 } from 'lucide-react';
-// import { useTutorCourses } from '@/hooks/useTutorCourses';
-// import { useTutorReviews, useTutorRatingStats } from '@/hooks/useTutorReviews';
-// import TutorReviewSystem from './TutorReviewSystem'; // Will be added later
+
+interface CourseType {
+  id: string;
+  name_he?: string;
+  code?: string;
+  institution_name?: string;
+  grade?: number;
+}
 
 interface EnhancedTutorProfileProps {
   tutor: any;
   onContact: () => void;
   onBookLesson: () => void;
+  allCourses?: CourseType[]; // אופציונלי – אם יש, מאפשר להשלים שמות קורסים לפי מזהה
 }
 
 const EnhancedTutorProfile = ({
   tutor,
   onContact,
-  onBookLesson
+  onBookLesson,
+  allCourses = []
 }: EnhancedTutorProfileProps) => {
-  // עדכון: תוכל להעביר לפה את הקורסים והביקורות מהשרת
-  const tutorCourses: any[] = tutor.courses || [];
+  // --- עיבוד קורסים ---
+  let tutorCourses: CourseType[] = [];
+  if (Array.isArray(tutor.courses)) {
+    // אם כל אובייקט הוא מזהה בלבד
+    if (typeof tutor.courses[0] === 'string' && allCourses.length > 0) {
+      tutorCourses = tutor.courses.map((courseId: string) =>
+        allCourses.find(c => c.id === courseId)
+      ).filter(Boolean) as CourseType[];
+    }
+    // אם כל אובייקט הוא אובייקט קורס מלא
+    else if (typeof tutor.courses[0] === 'object') {
+      tutorCourses = tutor.courses;
+    }
+  }
+
   const reviews: any[] = tutor.reviews || [];
   const ratingStats = tutor.ratingStats || null;
-
-  const outstandingCourses = tutorCourses.filter(tc => tc.is_outstanding_student);
-  const expertCourses = tutorCourses.filter(tc => tc.experience_level === 'expert');
 
   const getExperienceBadge = (level: string) => {
     const colors = {
@@ -57,6 +65,7 @@ const EnhancedTutorProfile = ({
       expert: 'מומחה'
     };
 
+    if (!level) return null;
     return (
       <Badge className={colors[level as keyof typeof colors]}>
         {labels[level as keyof typeof labels]}
@@ -70,12 +79,8 @@ const EnhancedTutorProfile = ({
       <Card className="overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white p-6">
           <div className="flex flex-col md:flex-row gap-6 items-start">
-            {/* תמונת פרופיל */}
             <Avatar className="w-24 h-24 border-4 border-white/20 shadow-lg">
-              <AvatarImage
-                src={tutor.avatar_url || undefined}
-                alt={tutor.name || 'Avatar'}
-              />
+              <AvatarImage src={tutor.avatar_url || undefined} alt={tutor.name || 'Avatar'} />
               <AvatarFallback className="text-2xl bg-white/20">
                 {tutor.name?.charAt(0).toUpperCase() || 'M'}
               </AvatarFallback>
@@ -86,26 +91,23 @@ const EnhancedTutorProfile = ({
                 <h1 className="text-3xl font-bold">{tutor.name}</h1>
                 {tutor.is_verified && (
                   <Badge className="bg-green-500 text-white">
-                    <Award className="w-3 h-3 mr-1" />
-                    מאומת
+                    <Award className="w-3 h-3 mr-1" /> מאומת
                   </Badge>
                 )}
                 {tutor.is_online && (
                   <Badge className="bg-yellow-500 text-white animate-pulse">
-                    <div className="w-2 h-2 bg-green-400 rounded-full mr-1" />
-                    זמין עכשיו
+                    <div className="w-2 h-2 bg-green-400 rounded-full mr-1" /> זמין עכשיו
                   </Badge>
                 )}
               </div>
-
               <div className="grid md:grid-cols-3 gap-4 mb-4">
                 <div className="flex items-center gap-2">
                   <Star className="w-5 h-5 text-yellow-300" />
                   <span className="font-semibold">
-                    {ratingStats?.average_rating || tutor.rating}/5
+                    {ratingStats?.average_rating || tutor.rating || 5}/5
                   </span>
                   <span className="opacity-90">
-                    ({ratingStats?.total_reviews || tutor.reviews_count} ביקורות)
+                    ({ratingStats?.total_reviews || tutor.reviews_count || 0} ביקורות)
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -116,28 +118,6 @@ const EnhancedTutorProfile = ({
                   <MapPin className="w-5 h-5" />
                   <span>{tutor.location}</span>
                 </div>
-              </div>
-
-              {/* Special Achievements */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {outstandingCourses.length > 0 && (
-                  <Badge className="bg-yellow-500 text-white">
-                    <Trophy className="w-3 h-3 mr-1" />
-                    סטודנט מצטיין ({outstandingCourses.length} קורסים)
-                  </Badge>
-                )}
-                {expertCourses.length > 0 && (
-                  <Badge className="bg-purple-500 text-white">
-                    <GraduationCap className="w-3 h-3 mr-1" />
-                    מומחה ({expertCourses.length} קורסים)
-                  </Badge>
-                )}
-                {reviews.length >= 10 && (
-                  <Badge className="bg-blue-500 text-white">
-                    <Users className="w-3 h-3 mr-1" />
-                    מורה פופולרי
-                  </Badge>
-                )}
               </div>
 
               {tutor.availability && (
@@ -155,8 +135,7 @@ const EnhancedTutorProfile = ({
                 className="bg-white text-blue-600 hover:bg-gray-100"
                 onClick={onBookLesson}
               >
-                <Calendar className="w-4 h-4 mr-2" />
-                הזמן שיעור
+                <Calendar className="w-4 h-4 mr-2" /> הזמן שיעור
               </Button>
               <Button
                 variant="outline"
@@ -164,8 +143,7 @@ const EnhancedTutorProfile = ({
                 className="bg-white/10 border-white text-white hover:bg-white/20"
                 onClick={onContact}
               >
-                <Phone className="w-4 h-4 mr-2" />
-                צור קשר
+                <Phone className="w-4 h-4 mr-2" /> צור קשר
               </Button>
               {tutor.email && (
                 <Button
@@ -174,8 +152,7 @@ const EnhancedTutorProfile = ({
                   className="text-white hover:bg-white/10"
                   onClick={() => window.open(`mailto:${tutor.email}`, '_blank')}
                 >
-                  <Mail className="w-4 h-4 mr-2" />
-                  שלח מייל
+                  <Mail className="w-4 h-4 mr-2" /> שלח מייל
                 </Button>
               )}
             </div>
@@ -197,8 +174,7 @@ const EnhancedTutorProfile = ({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                התמחויות
+                <BookOpen className="w-5 h-5" /> התמחויות
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -208,39 +184,32 @@ const EnhancedTutorProfile = ({
                 </p>
               ) : (
                 <div className="grid gap-4">
-                  {tutorCourses.map((tutorCourse) => (
+                  {tutorCourses.map((tc) => (
                     <div
-                      key={tutorCourse.id}
-                      className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50"
+                      key={tc.id}
+                      className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 flex flex-col md:flex-row justify-between"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h3 className="font-semibold text-lg">
-                            {tutorCourse.course?.name_he}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {tutorCourse.course?.code} • {tutorCourse.course?.institutions?.name_he}
+                      <div>
+                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                          <BookOpen className="w-5 h-5 text-blue-500" />
+                          {tc.name_he || 'קורס לא ידוע'}
+                          {tc.code && (
+                            <span className="text-xs text-gray-500">({tc.code})</span>
+                          )}
+                        </h3>
+                        {tc.institution_name && (
+                          <p className="text-xs text-gray-600">
+                            <GraduationCap className="inline w-4 h-4" /> {tc.institution_name}
                           </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {getExperienceBadge(tutorCourse.experience_level)}
-                          {tutorCourse.grade && (
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">
-                              ציון: {tutorCourse.grade}
-                            </Badge>
-                          )}
-                          {tutorCourse.is_outstanding_student && (
-                            <Badge className="bg-yellow-500 text-white">
-                              <Trophy className="w-3 h-3 mr-1" />
-                              מצטיין
-                            </Badge>
-                          )}
-                        </div>
+                        )}
                       </div>
-
-                      {tutorCourse.description && (
-                        <p className="text-gray-700 text-sm">{tutorCourse.description}</p>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {tc.grade && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            ציון: {tc.grade}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -264,7 +233,6 @@ const EnhancedTutorProfile = ({
                 )}
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle>ניסיון והכשרה</CardTitle>
@@ -282,7 +250,7 @@ const EnhancedTutorProfile = ({
 
         {/* Reviews Tab */}
         <TabsContent value="reviews">
-          {/* <TutorReviewSystem tutorId={tutor.id} tutorName={tutor.name} /> */}
+          {/* מערכת ביקורות תתווסף בעתיד */}
           <div className="p-6 text-center text-gray-500">
             מערכת ביקורות תתווסף בקרוב
           </div>
@@ -293,8 +261,7 @@ const EnhancedTutorProfile = ({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                זמינות
+                <Calendar className="w-5 h-5" /> זמינות
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -307,8 +274,7 @@ const EnhancedTutorProfile = ({
                       לתיאום שיעור ספציפי, צרו קשר ישירות עם המורה
                     </p>
                     <Button onClick={onContact}>
-                      <Phone className="w-4 h-4 mr-2" />
-                      צור קשר לתיאום
+                      <Phone className="w-4 h-4 mr-2" /> צור קשר לתיאום
                     </Button>
                   </div>
                 </div>

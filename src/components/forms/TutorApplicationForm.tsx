@@ -24,7 +24,8 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
     description: '',
     hourly_rate: '',
     location: '',
-    availability: ''
+    availability: '',
+    acceptedTerms: false // ✅ שדה חדש – אישור תנאים
   });
   const [selectedCourses, setSelectedCourses] = useState<{id: string; name_he: string; code?: string; institution_name?: string; grade?: number}[]>([]);
   const [isStudent, setIsStudent] = useState(false);
@@ -51,6 +52,13 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    // ✅ חסימת שליחה אם לא סומן אישור תנאים
+    if (!formData.acceptedTerms) {
+      alert('יש לאשר את תנאי השימוש למורים פרטיים לפני השליחה.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       // העלאת תמונת פרופיל ל־Supabase Storage
@@ -94,7 +102,8 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
           hourly_rate: formData.hourly_rate ? parseInt(formData.hourly_rate) : null,
           location: formData.location,
           availability: formData.availability,
-          avatar_url: avatarUrl
+          avatar_url: avatarUrl,
+          // ניתן להוסיף פה בעתיד: accepted_terms: formData.acceptedTerms
         }]);
 
       if (error) throw error;
@@ -111,7 +120,8 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
           description: '',
           hourly_rate: '',
           location: '',
-          availability: ''
+          availability: '',
+          acceptedTerms: false // אפס את התיבה
         });
         setSelectedCourses([]);
         setIsStudent(false);
@@ -317,6 +327,23 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
               placeholder="ספר קצת על עצמך ועל שיטת ההוראה שלך..."
               rows={3}
             />
+          </div>
+
+          {/* ✅ תיבת סימון תנאי שימוש */}
+          <div className="flex items-start gap-2 text-sm bg-gray-50 border border-gray-200 p-3 rounded">
+            <Checkbox
+              id="accept-terms"
+              checked={formData.acceptedTerms}
+              onCheckedChange={(checked) =>
+                setFormData(prev => ({ ...prev, acceptedTerms: !!checked }))
+              }
+            />
+            <label htmlFor="accept-terms" className="leading-snug">
+              אני מאשר/ת את&nbsp;
+              <a href="/tutors-terms" target="_blank" className="text-blue-600 underline">
+                תנאי השימוש למורים פרטיים
+              </a>
+            </label>
           </div>
 
           <div className="flex gap-3 pt-4">
