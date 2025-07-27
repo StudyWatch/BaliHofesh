@@ -1,3 +1,4 @@
+// Header.tsx
 import React, { useState, useEffect, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -43,7 +44,6 @@ const Header: React.FC = () => {
   const unreadCount = notifications.filter(n => !n.is_read).length;
   const { data: profile } = useUserProfile();
 
-  // זיהוי אם המשתמש הוא גם מורה
   const isTutor = profile?.role === 'tutor' || profile?.role === 'admin' || profile?.is_tutor;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,7 +51,6 @@ const Header: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 640);
@@ -59,7 +58,6 @@ const Header: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // מצב לילה עם שמירה ל-localStorage
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       if (localStorage.getItem('darkMode')) {
@@ -95,7 +93,6 @@ const Header: React.FC = () => {
     { href: '/store', label: dir === 'rtl' ? 'החנות' : 'Store', icon: ShoppingCart },
   ];
 
-  // Loading State
   if (loading) {
     return (
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
@@ -148,7 +145,18 @@ const Header: React.FC = () => {
               <Link
                 key={item.href}
                 to={item.href}
-                className="flex items-center space-x-1 space-x-reverse text-gray-700 dark:text-gray-100 hover:text-primary dark:hover:text-indigo-300 transition-colors duration-200 px-3 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-[#232949]"
+                className="
+                  flex items-center space-x-1 space-x-reverse
+                  text-gray-700 dark:text-gray-100
+                  hover:text-blue-700 dark:hover:text-indigo-300
+                  transition-colors duration-200 px-3 py-2 rounded-lg relative
+                  group
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
+                  hover:bg-blue-50 dark:hover:bg-[#222844]
+                  after:content-[''] after:absolute after:left-2 after:right-2 after:bottom-1 after:h-1 after:rounded-full after:opacity-0 group-hover:after:opacity-70 after:transition-all after:duration-300
+                  after:bg-gradient-to-r after:from-blue-300 after:to-purple-400
+                "
+                tabIndex={0}
               >
                 <item.icon className="w-4 h-4" />
                 <span>{item.label}</span>
@@ -160,25 +168,45 @@ const Header: React.FC = () => {
           <div className="hidden md:flex flex-1 max-w-md mx-8">
             <form onSubmit={handleSearch} className="w-full">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-300 group-focus-within:text-blue-600 w-5 h-5 transition-colors" />
                 <Input
                   type="text"
                   placeholder={dir === 'rtl' ? "חיפוש קורסים..." : "Search courses..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-gray-50 border-gray-200 focus:bg-white dark:bg-[#222844] dark:focus:bg-[#232949] dark:text-gray-100"
+                  className="
+                    pl-10 bg-white/60 border-2 border-gray-200 dark:bg-[#222844]/90 dark:border-[#232949]
+                    focus:bg-white dark:focus:bg-[#232949] dark:text-gray-100
+                    focus:border-blue-400 focus:ring-2 focus:ring-blue-300
+                    transition-all duration-200
+                    rounded-xl shadow
+                    hover:shadow-lg
+                    outline-none
+                  "
+                  style={{
+                    boxShadow: '0 1px 5px 0 rgba(90,110,250,0.07)',
+                  }}
                 />
+                {/* קו תחתון אנימטיבי ב־focus */}
+                <span className="
+                  absolute right-0 left-0 bottom-0 h-0.5
+                  bg-gradient-to-r from-blue-400 to-purple-400
+                  rounded-full pointer-events-none
+                  scale-x-0 group-focus-within:scale-x-100
+                  transition-transform duration-300
+                " />
               </div>
             </form>
           </div>
 
           {/* Right Section */}
           <div className="flex items-center space-x-1 xs:space-x-2 sm:space-x-4 space-x-reverse">
-            {/* --- כפתור מצב לילה/יום --- */}
+            {/* --- מצב לילה/יום --- */}
             <button
               className={`
                 toggle-darkmode-btn mr-1 flex items-center justify-center rounded-full
                 transition border-2 border-transparent focus:outline-none
+                hover:ring-2 hover:ring-blue-200 dark:hover:ring-indigo-900
                 ${isDarkMode
                   ? "bg-gradient-to-tr from-indigo-900 to-blue-800 shadow-indigo-800/20"
                   : "bg-gradient-to-tr from-blue-100 to-white shadow-blue-200/30"}
@@ -205,7 +233,13 @@ const Header: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
-              className="hidden sm:flex"
+              className="
+                hidden sm:flex
+                hover:bg-blue-50 dark:hover:bg-[#21294e]
+                hover:text-blue-700 dark:hover:text-indigo-300
+                rounded-lg px-2
+                transition
+              "
             >
               {dir === 'rtl' ? 'EN' : 'עב'}
             </Button>
@@ -217,8 +251,9 @@ const Header: React.FC = () => {
                 className={`
                   relative rounded-full transition shadow-sm
                   hover:bg-blue-50 dark:hover:bg-[#21294e]
-                  focus:outline-none focus:ring-2 focus:ring-blue-500/60
+                  focus:outline-none focus:ring-2 focus:ring-blue-400
                   w-10 h-10 flex items-center justify-center
+                  hover:scale-105
                 `}
                 aria-label={dir === 'rtl' ? 'התראות' : 'Notifications'}
                 tabIndex={0}
@@ -248,7 +283,13 @@ const Header: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center gap-2 px-2"
+                    className="
+                      flex items-center gap-2 px-2
+                      rounded-lg
+                      hover:bg-blue-50 dark:hover:bg-[#21294e]
+                      hover:text-blue-700 dark:hover:text-indigo-300
+                      transition
+                    "
                     aria-label="פרופיל משתמש"
                   >
                     <User className="w-5 h-5" />
@@ -290,7 +331,7 @@ const Header: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAuthDialog(true)}
-                className="flex items-center gap-2 px-2"
+                className="flex items-center gap-2 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-[#21294e] transition"
                 aria-label="התחבר"
               >
                 <User className="w-5 h-5" />

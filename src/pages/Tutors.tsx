@@ -5,7 +5,10 @@ import { useTutors } from '@/hooks/useTutors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, ArrowLeft, Star, MapPin, Phone, BookOpen, Clock, DollarSign, Search } from 'lucide-react';
+import {
+  ArrowRight, ArrowLeft, Star, MapPin, Phone, BookOpen,
+  Clock, DollarSign, Search, Sparkles
+} from 'lucide-react';
 import TutorApplicationForm from '@/components/forms/TutorApplicationForm';
 
 const defaultAvatar = "https://cdn-icons-png.flaticon.com/512/3135/3135789.png";
@@ -13,7 +16,7 @@ const defaultAvatar = "https://cdn-icons-png.flaticon.com/512/3135/3135789.png";
 // טיפוס קורס
 type CourseType = { id: string; name_he: string; category?: string };
 
-// עיבוד קורסים מכל מורה (מ subjects וגם מ tutor_courses)
+// אוסף קורסים מכל המורים להצגה
 function extractAllCourses(tutors: any[]): CourseType[] {
   const allCourses: CourseType[] = [];
   tutors.forEach((tutor) => {
@@ -29,7 +32,7 @@ function extractAllCourses(tutors: any[]): CourseType[] {
         }
       });
     }
-    // subjects (מחרוזות)
+    // subjects (טקסט)
     if (Array.isArray(tutor.subjects)) {
       tutor.subjects.forEach((subject: string) => {
         const codeMatch = subject.match(/\(([^)]+)\)/);
@@ -37,12 +40,12 @@ function extractAllCourses(tutors: any[]): CourseType[] {
         allCourses.push({
           id: codeMatch ? String(codeMatch[1]) : name_he,
           name_he: name_he,
-          category: '', // אין קטגוריה במקרה זה
+          category: '',
         });
       });
     }
   });
-  // מסנן כפולים לפי id
+  // סינון כפולים
   const unique = new Map<string, CourseType>();
   allCourses.forEach(course => {
     if (course.id && !unique.has(course.id)) unique.set(course.id, course);
@@ -60,7 +63,7 @@ const Tutors = () => {
 
   // כל הקורסים מכל המורים
   const allCourses = useMemo<CourseType[]>(() => extractAllCourses(tutors), [tutors]);
-  // קטגוריות מתוך כל הקורסים (סינון ריקים)
+  // קטגוריות מתוך כל הקורסים
   const categories = useMemo<string[]>(() => {
     const set = new Set<string>();
     allCourses.forEach(course => {
@@ -69,7 +72,7 @@ const Tutors = () => {
     return ['all', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'he'))];
   }, [allCourses]);
 
-  // קורסים רלוונטיים לקטגוריה הנבחרת
+  // קורסים רלוונטיים לקטגוריה
   const coursesInCategory = useMemo<CourseType[]>(() => {
     return selectedCategory === 'all'
       ? allCourses
@@ -81,8 +84,7 @@ const Tutors = () => {
     return tutors.filter((tutor: any) => {
       let hasCategory = selectedCategory === 'all';
       let hasCourse = !selectedCourse;
-
-      // בדיקה ב tutor_courses
+      // tutor_courses
       if (Array.isArray(tutor.tutor_courses)) {
         if (selectedCategory !== 'all') {
           hasCategory = tutor.tutor_courses.some((tc: any) => tc.course?.category === selectedCategory);
@@ -94,7 +96,7 @@ const Tutors = () => {
           );
         }
       }
-      // בדיקה גם על subjects
+      // subjects (טקסט)
       if (Array.isArray(tutor.subjects)) {
         if (selectedCourse && !hasCourse) {
           hasCourse = tutor.subjects.some((subj: string) => {
@@ -108,20 +110,55 @@ const Tutors = () => {
     });
   }, [tutors, selectedCategory, selectedCourse]);
 
+  // -- ✨ ריבוע הצטרפות למורים --
+  const JoinSquare = () => (
+    <Card
+      className="min-h-[200px] flex flex-col items-center justify-center relative bg-white/80 backdrop-blur border border-blue-100 shadow-md hover:shadow-xl hover:border-blue-300 transition-all duration-200 group"
+      style={{ animationDelay: "0ms" }}
+    >
+      <CardContent className="flex flex-col items-center justify-center py-8 px-6 relative z-10">
+        <div className="flex items-center gap-3 mb-2">
+          <Sparkles className="w-7 h-7 text-blue-400 group-hover:rotate-6 transition" />
+          <h3 className="text-xl md:text-2xl font-bold text-blue-700 tracking-tight text-center">
+            המקום הזה שמור בשבילך!
+          </h3>
+        </div>
+        <p className="text-gray-700 text-base md:text-lg mb-5 text-center max-w-xs">
+          למדת קורס והצטיינת?  
+          זה הזמן להצטרף לצוות המורים שלנו ולעזור לעוד סטודנטים להצליח!
+        </p>
+        <Button
+          size="lg"
+          className="bg-blue-600 text-white px-8 rounded-xl shadow hover:bg-blue-700 transition font-bold flex items-center gap-2"
+          onClick={() => setShowApplicationForm(true)}
+        >
+          <BookOpen className="w-5 h-5" />
+          הגש מועמדות כמורה
+        </Button>
+      </CardContent>
+      {/* אייקון דקורטיבי רקע */}
+      <div className="absolute -left-4 -top-4 opacity-20 blur-[2px]">
+        <Sparkles className="w-16 h-16 text-blue-200" />
+      </div>
+    </Card>
+  );
+
   return (
     <>
-      <div className="min-h-screen relative overflow-hidden" dir={dir}
+      <div
+        className="min-h-screen relative overflow-x-hidden"
+        dir={dir}
         style={{
           background: `
             linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe),
-            linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1), rgba(240, 147, 251, 0.1))
+            linear-gradient(45deg, rgba(102, 126, 234, 0.10), rgba(118, 75, 162, 0.10), rgba(240, 147, 251, 0.07))
           `,
           backgroundSize: '400% 400%, 100% 100%',
           animation: 'gradientShift 15s ease infinite'
         }}
       >
         {/* Header */}
-        <div className="bg-white/90 backdrop-blur-md border-b relative z-10">
+        <div className="bg-white/90 backdrop-blur-md border-b shadow z-20">
           <div className="container mx-auto px-4 py-6">
             <div className="flex items-center gap-4 mb-4">
               <Button variant="ghost" onClick={() => navigate('/')} className="flex items-center gap-2">
@@ -132,14 +169,14 @@ const Tutors = () => {
             <div className="text-center">
               <div className="flex items-center justify-center gap-3 mb-4">
                 <BookOpen className="w-8 h-8 text-blue-600" />
-                <h1 className="text-4xl font-bold text-gray-900">
-                  <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+                <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight">
+                  <span className="bg-gradient-to-r from-blue-600 to-green-400 bg-clip-text text-transparent">
                     מורים פרטיים 👨‍🏫
                   </span>
                 </h1>
               </div>
-              <p className="text-xl text-gray-700 max-w-2xl mx-auto">
-                מצאו את המורה הפרטי המושלם עבורכם - מומחים מנוסים בכל התחומים
+              <p className="text-xl md:text-2xl text-gray-700 max-w-2xl mx-auto font-medium">
+                מצאו את המורה הפרטי המושלם עבורכם, או הצטרפו להצלחה!
               </p>
             </div>
           </div>
@@ -147,7 +184,7 @@ const Tutors = () => {
 
         {/* --- סינון לפי קטגוריה --- */}
         <div className="container mx-auto px-4 py-8 relative z-10">
-          <Card className="mb-4 bg-white/80 backdrop-blur-sm shadow-lg">
+          <Card className="mb-4 bg-white/85 backdrop-blur-sm shadow-lg rounded-2xl border-0">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
@@ -165,7 +202,7 @@ const Tutors = () => {
                       setSelectedCategory(category);
                       setSelectedCourse('');
                     }}
-                    className="mb-2 transition-all duration-200 hover:scale-105"
+                    className="mb-2 transition-all duration-200 hover:scale-105 font-semibold rounded-xl"
                   >
                     {category === 'all' ? 'כל הקטגוריות' : category}
                   </Button>
@@ -175,7 +212,7 @@ const Tutors = () => {
           </Card>
 
           {/* --- סינון לפי קורס --- */}
-          <Card className="mb-8 bg-white/90 backdrop-blur-sm shadow-md">
+          <Card className="mb-8 bg-white/95 backdrop-blur-sm shadow-md rounded-2xl border-0">
             <CardContent>
               <div className="flex flex-col md:flex-row gap-3 items-center">
                 <Search className="w-5 h-5 text-blue-500" />
@@ -184,7 +221,7 @@ const Tutors = () => {
                     <Badge
                       key={course.id}
                       variant={selectedCourse === course.id ? "default" : "outline"}
-                      className={`cursor-pointer ${selectedCourse === course.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'}`}
+                      className={`cursor-pointer font-bold ${selectedCourse === course.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'}`}
                       onClick={() => setSelectedCourse(course.id)}
                     >
                       {course.name_he}
@@ -194,7 +231,7 @@ const Tutors = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-gray-500"
+                  className="text-gray-500 font-medium"
                   onClick={() => setSelectedCourse('')}
                 >
                   איפוס סינון קורס
@@ -210,10 +247,10 @@ const Tutors = () => {
             </div>
           )}
 
-          {/* ---- תצוגת מורים ---- */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* ---- גריד מורים ---- */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-7">
+            <JoinSquare />
             {filteredTutors.map((tutor: any, index: number) => {
-              // שליפת קורסים מתוך הטקסט או אובייקטים
               let displayCourses: string[] = [];
               if (Array.isArray(tutor.tutor_courses) && tutor.tutor_courses.length > 0) {
                 displayCourses = tutor.tutor_courses
@@ -224,12 +261,11 @@ const Tutors = () => {
                   subj.replace(/ \([^)]+\)/, '').replace(/ - ציון: \d+/, '')
                 );
               }
-
               return (
                 <Card
                   key={tutor.id}
-                  className="hover:shadow-xl transition-all duration-300 bg-white/90 backdrop-blur-sm hover:-translate-y-2 hover:scale-105 border-2 hover:border-blue-200"
-                  style={{ animationDelay: `${index * 100}ms` }}
+                  className="hover:shadow-2xl transition-all duration-300 bg-white/95 backdrop-blur-sm hover:-translate-y-2 hover:scale-105 border-2 border-blue-50 rounded-2xl"
+                  style={{ animationDelay: `${(index + 1) * 100}ms` }}
                 >
                   <CardContent className="p-6">
                     <div className="flex items-center gap-4 mb-4">
@@ -238,7 +274,7 @@ const Tutors = () => {
                           src={tutor.avatar_url ? tutor.avatar_url : defaultAvatar}
                           alt={tutor.name}
                           className="w-full h-full object-cover"
-                          style={{objectPosition: "center"}}
+                          style={{ objectPosition: "center" }}
                         />
                       </div>
                       <div className="flex-1">
@@ -267,11 +303,9 @@ const Tutors = () => {
                         </div>
                       </div>
                     </div>
-
                     <p className="text-gray-600 text-sm mb-4 line-clamp-2">
                       {tutor.description}
                     </p>
-
                     <div className="space-y-2 mb-4 text-sm">
                       <div className="flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-gray-500" />
@@ -288,7 +322,6 @@ const Tutors = () => {
                         </div>
                       )}
                     </div>
-
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -315,14 +348,15 @@ const Tutors = () => {
           </div>
 
           {filteredTutors.length === 0 && !isLoading && (
-            <Card className="p-8 text-center bg-white/80 backdrop-blur-sm">
+            <Card className="p-8 text-center bg-white/80 backdrop-blur-sm mt-8 rounded-2xl shadow">
               <BookOpen className="w-16 h-16 mx-auto text-gray-400 mb-4" />
               <h3 className="text-xl font-semibold mb-2">אין מורים בקטגוריה או קורס זה</h3>
               <p className="text-gray-600">נסה לבחור קטגוריה או קורס אחר, או חזור מאוחר יותר</p>
             </Card>
           )}
 
-          <Card className="mt-12 bg-gradient-to-r from-blue-500 to-purple-500 text-white overflow-hidden relative">
+          {/* כרטיס קריאה להצטרפות נוסף לסוף הדף */}
+          <Card className="mt-12 bg-gradient-to-r from-blue-500 to-purple-500 text-white overflow-hidden relative rounded-2xl shadow-xl">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"></div>
             <CardContent className="p-8 text-center relative z-10">
               <h2 className="text-2xl font-bold mb-4">רוצה להצטרף אלינו?</h2>

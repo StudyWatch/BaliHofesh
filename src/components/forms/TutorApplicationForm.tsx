@@ -9,6 +9,35 @@ import { User, Mail, Phone, Clock, MapPin, DollarSign, GraduationCap, UploadClou
 import CourseSelector from '@/components/course/CourseSelector';
 import { Checkbox } from '@/components/ui/checkbox';
 
+// ✨ מערך תמונות מוכנות
+const defaultAvatars = [
+  "https://img.icons8.com/color/96/mortarboard.png",
+  "https://img.icons8.com/color/96/businessman.png",
+  "https://img.icons8.com/color/96/user-male-skin-type-4.png",
+  "https://img.icons8.com/color/96/administrator-male.png",
+  "https://img.icons8.com/color/96/conference-background-selected.png",
+  "https://img.icons8.com/color/96/classroom.png",
+  "https://img.icons8.com/color/96/user-female.png",
+  "https://img.icons8.com/color/96/person-female.png",
+  "https://img.icons8.com/color/96/teacher-female--v2.png",
+  "https://img.icons8.com/color/96/user.png",
+  "https://img.icons8.com/color/96/manager--v2.png",
+  "https://img.icons8.com/color/96/user-location-female.png",
+  "https://img.icons8.com/color/96/teacher-male--v2.png",
+  "https://img.icons8.com/color/96/groups.png",
+  "https://img.icons8.com/color/96/checked-user-male.png",
+  "https://img.icons8.com/color/96/accounting.png",
+  "https://img.icons8.com/color/96/idea-sharing.png",
+  "https://img.icons8.com/color/96/calculator.png",
+  "https://img.icons8.com/color/96/support-female.png",
+  "https://img.icons8.com/color/96/user-female-circle.png",
+  "https://img.icons8.com/color/96/reading.png",
+  "https://img.icons8.com/color/96/family.png",
+  "https://img.icons8.com/color/96/support-male.png",
+  "https://img.icons8.com/color/96/open-book--v2.png",
+  "https://img.icons8.com/color/96/student-male.png",
+];
+
 interface TutorApplicationFormProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,16 +54,18 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
     hourly_rate: '',
     location: '',
     availability: '',
-    acceptedTerms: false // ✅ שדה חדש – אישור תנאים
+    acceptedTerms: false,
   });
-  const [selectedCourses, setSelectedCourses] = useState<{id: string; name_he: string; code?: string; institution_name?: string; grade?: number}[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<{id: string; name_he: string; code?: string; institution_name?: string;}[]>([]);
   const [isStudent, setIsStudent] = useState(false);
   const [courseGrades, setCourseGrades] = useState<{[courseId: string]: number}>({});
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  // שינוי ציון של קורס נבחר
   const handleCourseGradeChange = (courseId: string, grade: number) => {
     setCourseGrades(prev => ({
       ...prev,
@@ -42,26 +73,33 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
     }));
   };
 
+  // שינוי תמונה אישית
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setAvatarFile(e.target.files[0]);
       setAvatarPreview(URL.createObjectURL(e.target.files[0]));
+      setSelectedAvatarUrl(null); // ביטול בחירה מוכנה
     }
   };
 
+  // שליחת הטופס
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // ✅ חסימת שליחה אם לא סומן אישור תנאים
     if (!formData.acceptedTerms) {
       alert('יש לאשר את תנאי השימוש למורים פרטיים לפני השליחה.');
       setIsSubmitting(false);
       return;
     }
+    if (selectedCourses.length === 0) {
+      alert('יש לבחור לפחות קורס אחד.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      // העלאת תמונת פרופיל ל־Supabase Storage
+      // העלאת תמונה
       let avatarUrl: string | null = null;
       if (avatarFile) {
         const fileExt = avatarFile.name.split('.').pop();
@@ -78,35 +116,47 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
           .from('tutor-avatars')
           .getPublicUrl(fileName);
         avatarUrl = data.publicUrl;
+      } else if (selectedAvatarUrl) {
+        avatarUrl = selectedAvatarUrl;
+      } else {
+        avatarUrl = null;
       }
 
-      // subjects בפורמט string[]
+      // בניית subjects לפי שם קורס (וקוד וציון אם יש)
       const subjects = selectedCourses.map(course => {
-        let courseTitle = course.name_he;
-        if (course.code) courseTitle += ` (${course.code})`;
+        let title = course.name_he;
+        if (course.code) title += ` (${course.code})`;
         if (isStudent && courseGrades[course.id]) {
-          courseTitle += ` - ציון: ${courseGrades[course.id]}`;
+          title += ` - ציון: ${courseGrades[course.id]}`;
         }
-        return courseTitle;
+        return title;
       });
 
+      // אובייקט שליחה
+      const submission = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        subjects: subjects, // מערך מחרוזות בלבד!
+        experience: formData.experience || null,
+        description: formData.description || null,
+        hourly_rate: formData.hourly_rate ? parseInt(formData.hourly_rate) : null,
+        location: formData.location || null,
+        availability: formData.availability || null,
+        avatar_url: avatarUrl ?? null,
+      };
+
+      // שליחה למסד
       const { error } = await supabase
         .from('tutor_applications')
-        .insert([{
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          subjects: subjects,
-          experience: formData.experience,
-          description: formData.description,
-          hourly_rate: formData.hourly_rate ? parseInt(formData.hourly_rate) : null,
-          location: formData.location,
-          availability: formData.availability,
-          avatar_url: avatarUrl,
-          // ניתן להוסיף פה בעתיד: accepted_terms: formData.acceptedTerms
-        }]);
+        .insert([submission]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase Error:', error);
+        alert('שגיאה בשליחת הבקשה: ' + (error.message || 'לא ידועה'));
+        setIsSubmitting(false);
+        return;
+      }
 
       setIsSubmitted(true);
       setTimeout(() => {
@@ -121,15 +171,16 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
           hourly_rate: '',
           location: '',
           availability: '',
-          acceptedTerms: false // אפס את התיבה
+          acceptedTerms: false
         });
         setSelectedCourses([]);
         setIsStudent(false);
         setCourseGrades({});
         setAvatarFile(null);
         setAvatarPreview(null);
+        setSelectedAvatarUrl(null);
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting application:', error);
       alert('שגיאה בשליחת הבקשה. אנא נסה שוב.');
     } finally {
@@ -174,11 +225,32 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* העלאת תמונת פרופיל */}
+          {/* בחירת תמונה מוכנה */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">בחר תמונה מוכנה</label>
+            <div className="flex gap-3 flex-wrap">
+              {defaultAvatars.map((url, idx) => (
+                <img
+                  key={idx}
+                  src={url}
+                  alt={`Avatar ${idx + 1}`}
+                  className={`w-16 h-16 rounded-full border-2 cursor-pointer transition
+                    ${selectedAvatarUrl === url ? 'border-blue-500 ring ring-blue-300' : 'border-gray-200'}`}
+                  onClick={() => {
+                    setSelectedAvatarUrl(url);
+                    setAvatarFile(null);
+                    setAvatarPreview(url);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* העלאת תמונה אישית */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium">
               <UploadCloud className="w-4 h-4" />
-              תמונת פרופיל (אופציונלי)
+              או העלה תמונה מהמחשב
             </label>
             <Input
               type="file"
@@ -209,7 +281,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
                 placeholder="הכנס את שמך המלא"
               />
             </div>
-
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <Mail className="w-4 h-4" />
@@ -224,7 +295,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
               />
             </div>
           </div>
-
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-medium">
@@ -237,7 +307,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
                 placeholder="050-1234567"
               />
             </div>
-
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <DollarSign className="w-4 h-4" />
@@ -295,7 +364,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
                 placeholder="תל אביב, ירושלים, און-ליין"
               />
             </div>
-
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <Clock className="w-4 h-4" />
@@ -308,7 +376,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
               />
             </div>
           </div>
-
           <div className="space-y-2">
             <label className="text-sm font-medium">ניסיון והכשרה</label>
             <Textarea
@@ -318,7 +385,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
               rows={3}
             />
           </div>
-
           <div className="space-y-2">
             <label className="text-sm font-medium">תיאור נוסף</label>
             <Textarea
@@ -328,8 +394,7 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
               rows={3}
             />
           </div>
-
-          {/* ✅ תיבת סימון תנאי שימוש */}
+          {/* תנאי שימוש */}
           <div className="flex items-start gap-2 text-sm bg-gray-50 border border-gray-200 p-3 rounded">
             <Checkbox
               id="accept-terms"
@@ -345,7 +410,6 @@ const TutorApplicationForm: React.FC<TutorApplicationFormProps> = ({ isOpen, onC
               </a>
             </label>
           </div>
-
           <div className="flex gap-3 pt-4">
             <Button type="submit" disabled={isSubmitting} className="flex-1">
               {isSubmitting ? 'שולח...' : 'שלח בקשה'}

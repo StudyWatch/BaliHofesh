@@ -6,11 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import {
-  ArrowRight, ArrowLeft, Star, MapPin, Phone, Mail, BookOpen,
-  Clock, DollarSign, GraduationCap, Award
-} from 'lucide-react';
+import { ArrowRight, ArrowLeft, Star, MapPin, Phone, Mail, BookOpen, Clock, DollarSign, GraduationCap, Award } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -28,6 +24,7 @@ const TutorProfile = () => {
         .select('*')
         .eq('id', id)
         .single();
+      
       if (error) throw error;
       return data;
     },
@@ -40,6 +37,7 @@ const TutorProfile = () => {
       const gradeMatch = subject.match(/- ציון: (\d+)/);
       const codeMatch = subject.match(/\(([^)]+)\)/);
       const courseName = subject.replace(/ \([^)]+\)/, '').replace(/ - ציון: \d+/, '');
+      
       return {
         name: courseName,
         code: codeMatch ? codeMatch[1] : null,
@@ -78,12 +76,11 @@ const TutorProfile = () => {
   }
 
   const courses = parseCourses(tutor.subjects || []);
-  const hasPhone = tutor.phone && tutor.phone.length > 6;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-indigo-100" dir={dir}>
       <Header />
-
+      
       <div className="container mx-auto px-4 py-10">
         {/* Back Button */}
         <div className="mb-6">
@@ -103,13 +100,10 @@ const TutorProfile = () => {
             <div className="flex flex-col lg:flex-row gap-8">
               {/* Profile Info */}
               <div className="flex-1">
-                <div className="flex items-center gap-5 mb-6">
-                  <Avatar className="w-24 h-24 border-4 border-white/30 shadow-md">
-                    <AvatarImage src={tutor.avatar_url || undefined} alt={tutor.name} />
-                    <AvatarFallback className="text-3xl bg-white/40">
-                      {tutor.name?.charAt(0).toUpperCase() || 'מ'}
-                    </AvatarFallback>
-                  </Avatar>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="bg-white/30 p-4 rounded-full">
+                    <GraduationCap className="w-12 h-12 text-white" />
+                  </div>
                   <div>
                     <h1 className="text-4xl font-bold text-white">{tutor.name}</h1>
                     <div className="flex items-center gap-3 mt-2">
@@ -132,17 +126,20 @@ const TutorProfile = () => {
                 <div className="grid md:grid-cols-2 gap-6 text-white">
                   <div className="flex items-center gap-3">
                     <Star className="w-5 h-5 text-yellow-300" />
-                    <span className="text-lg font-semibold">{tutor.rating || 5}</span>
-                    <span className="opacity-90">({tutor.reviews_count || 0} ביקורות)</span>
+                    <span className="text-lg font-semibold">{tutor.rating}</span>
+                    <span className="opacity-90">({tutor.reviews_count} ביקורות)</span>
                   </div>
+                  
                   <div className="flex items-center gap-3">
                     <DollarSign className="w-5 h-5" />
                     <span className="text-lg font-semibold">₪{tutor.hourly_rate} לשעה</span>
                   </div>
+                  
                   <div className="flex items-center gap-3">
                     <MapPin className="w-5 h-5" />
                     <span>{tutor.location}</span>
                   </div>
+                  
                   {tutor.availability && (
                     <div className="flex items-center gap-3">
                       <Clock className="w-5 h-5" />
@@ -154,23 +151,12 @@ const TutorProfile = () => {
 
               {/* Contact Actions */}
               <div className="flex flex-col gap-3 lg:min-w-[200px]">
-                {hasPhone && (
-                  <Button
-                    size="lg"
-                    className="bg-white text-blue-600 hover:bg-gray-100"
-                    onClick={() => window.open(`tel:${tutor.phone}`)}
-                  >
-                    <Phone className="w-4 h-4 mr-2" />
-                    התקשר עכשיו
-                  </Button>
-                )}
+                <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+                  <Phone className="w-4 h-4 mr-2" />
+                  צור קשר
+                </Button>
                 {tutor.email && (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="bg-white/10 border-white text-white hover:bg-white/20"
-                    onClick={() => window.open(`mailto:${tutor.email}`)}
-                  >
+                  <Button variant="outline" size="lg" className="bg-white/10 border-white text-white hover:bg-white/20">
                     <Mail className="w-4 h-4 mr-2" />
                     שלח מייל
                   </Button>
@@ -191,35 +177,31 @@ const TutorProfile = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {courses.length === 0 ? (
-                  <div className="text-gray-500 py-6 text-center">אין קורסים להצגה</div>
-                ) : (
-                  <div className="grid gap-4">
-                    {courses.map((course, index) => (
-                      <div key={index} className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold text-gray-900">{course.name}</h3>
-                            {course.code && (
-                              <p className="text-sm text-gray-600">קוד: {course.code}</p>
-                            )}
-                          </div>
-                          {course.grade && (
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">
-                              <GraduationCap className="w-3 h-3 mr-1" />
-                              ציון: {course.grade}
-                            </Badge>
+                <div className="grid gap-4">
+                  {courses.map((course, index) => (
+                    <div key={index} className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{course.name}</h3>
+                          {course.code && (
+                            <p className="text-sm text-gray-600">קוד: {course.code}</p>
                           )}
                         </div>
+                        {course.grade && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            <GraduationCap className="w-3 h-3 mr-1" />
+                            ציון: {course.grade}
+                          </Badge>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* About / Experience */}
+          {/* About */}
           <div className="space-y-6">
             {tutor.description && (
               <Card className="bg-white/80 backdrop-blur-sm shadow-lg">

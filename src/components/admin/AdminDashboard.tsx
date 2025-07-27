@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,9 +17,23 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminActions } from '@/hooks/useAdminActions';
-
+import { useUserProfile } from '@/hooks/useProfile'; // ה-hook שמחזיר את ה-profile כולל role
 
 const AdminDashboard = () => {
+  const { profile, isLoading } = useUserProfile();
+  const navigate = useNavigate();
+
+  // הגנת מנהלים בלבד!
+  useEffect(() => {
+    if (!isLoading && profile?.role !== "admin") {
+      navigate("/unauthorized", { replace: true });
+    }
+  }, [profile, isLoading, navigate]);
+
+  // בזמן טעינה – טוען. אם איכשהו לא admin – אל תציג כלום
+  if (isLoading) return <div>טוען...</div>;
+  if (profile?.role !== "admin") return null;
+
   // Fetch dashboard statistics
   const { data: stats } = useQuery({
     queryKey: ['admin-dashboard-stats'],
@@ -40,7 +55,6 @@ const AdminDashboard = () => {
         supabase.from('study_rooms').select('*', { count: 'exact', head: true }),
         supabase.from('marathon_registrations').select('*', { count: 'exact', head: true })
       ]);
-
       return {
         users: usersCount || 0,
         courses: coursesCount || 0,
@@ -148,7 +162,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className={`p-3 rounded-lg ${stat.color} bg-opacity-10`}>
-                  <stat.icon className={`w-6 h-6 text-white`} style={{ color: stat.color.replace('bg-', '').replace('-500', '') }} />
+                  <stat.icon className={`w-6 h-6 text-white`} />
                 </div>
               </div>
             </CardContent>
