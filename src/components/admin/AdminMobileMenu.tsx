@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { 
   Menu,
+  BarChart3,
   BookOpen, 
   Calendar, 
   GraduationCap, 
@@ -12,30 +12,52 @@ import {
   ShoppingCart, 
   MessageSquare, 
   Users,
-  UserCheck
+  UserCheck,
+  UsersRound,
+  Mail
 } from 'lucide-react';
 
+// הגדירו את הטיפוס הזהה בדיוק למה שמופיע ב־Admin.tsx
+type AdminTab =
+  | 'dashboard'
+  | 'courses'
+  | 'semesters'
+  | 'course-groups'
+  | 'exams'
+  | 'collaboration'
+  | 'messages'
+  | 'users'
+  | 'tutors'
+  | 'tips'
+  | 'sponsored'
+  | 'store'
+  | 'reports';
+
 interface AdminMobileMenuProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
+  activeTab: AdminTab;
+  onTabChange: (tab: AdminTab) => void;
 }
+
+const adminSections: { id: AdminTab; icon: React.ElementType; label: string }[] = [
+  { id: 'dashboard', icon: BarChart3, label: 'לוח בקרה' },
+  { id: 'courses', icon: BookOpen, label: 'ניהול קורסים' },
+  { id: 'semesters', icon: Calendar, label: 'סמסטרים' },
+  { id: 'course-groups', icon: UsersRound, label: 'קבוצות קורסים' },
+  { id: 'exams', icon: Calendar, label: 'בחינות' },
+  { id: 'collaboration', icon: UserCheck, label: 'שיתוף פעולה' },
+  { id: 'messages', icon: Mail, label: 'הודעות' },
+  { id: 'users', icon: Users, label: 'משתמשים' },
+  { id: 'tutors', icon: GraduationCap, label: 'מורים' },
+  { id: 'tips', icon: Lightbulb, label: 'טיפים' },
+  { id: 'sponsored', icon: Megaphone, label: 'פרסום' },
+  { id: 'store', icon: ShoppingCart, label: 'החנות' },
+  { id: 'reports', icon: MessageSquare, label: 'פניות' },
+];
 
 const AdminMobileMenu = ({ activeTab, onTabChange }: AdminMobileMenuProps) => {
   const [open, setOpen] = useState(false);
 
-  const adminSections = [
-    { id: 'courses', icon: BookOpen, label: 'ניהול קורסים' },
-    { id: 'exams', icon: Calendar, label: 'מועדי בחינות' },
-    { id: 'collaboration', icon: UserCheck, label: 'שיתוף פעולה' },
-    { id: 'tutors', icon: GraduationCap, label: 'מורים פרטיים' },
-    { id: 'tips', icon: Lightbulb, label: 'טיפים' },
-    { id: 'sponsored', icon: Megaphone, label: 'פרסום ממומן' },
-    { id: 'store', icon: ShoppingCart, label: 'החנות' },
-    { id: 'reports', icon: MessageSquare, label: 'פניות משתמשים' },
-    { id: 'users', icon: Users, label: 'ניהול משתמשים' },
-  ];
-
-  const handleTabChange = (tabId: string) => {
+  const handleTabChange = (tabId: AdminTab) => {
     onTabChange(tabId);
     setOpen(false);
   };

@@ -5,10 +5,53 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { GraduationCap, CheckCircle, XCircle } from 'lucide-react';
 
-const TutorsManagement = () => {
-  const [activeTab, setActiveTab] = useState('approved');
-  const [tutors, setTutors] = useState([]);
-  const [requests, setRequests] = useState([]);
+interface Course {
+  id: string;
+  name_he: string;
+  category?: string;
+  code?: string;
+}
+interface TutorCourse {
+  id: string;
+  course_id: string;
+  course?: Course;
+}
+interface Tutor {
+  id: string;
+  name: string;
+  hourly_rate?: number;
+  location?: string;
+  rating?: number;
+  reviews_count?: number;
+  is_online?: boolean;
+  is_verified?: boolean;
+  email?: string;
+  phone?: string;
+  avatar_url?: string;
+  experience?: string;
+  description?: string;
+  availability?: string;
+  tutor_courses?: TutorCourse[];
+}
+interface TutorRequest {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  avatar_url?: string;
+  hourly_rate?: number;
+  location?: string;
+  experience?: string;
+  description?: string;
+  availability?: string;
+  subjects?: string[];
+  status?: string;
+}
+
+const TutorsManagement: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'approved' | 'requests'>('approved');
+  const [tutors, setTutors] = useState<Tutor[]>([]);
+  const [requests, setRequests] = useState<TutorRequest[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -17,10 +60,7 @@ const TutorsManagement = () => {
 
   const fetchAll = async () => {
     setErrorMsg('');
-    await Promise.all([
-      fetchTutors(),
-      fetchRequests()
-    ]);
+    await Promise.all([fetchTutors(), fetchRequests()]);
   };
 
   // שליפת מורים כולל JOIN לקורסים דרך tutor_courses
@@ -32,16 +72,17 @@ const TutorsManagement = () => {
         tutor_courses (
           id,
           course_id,
-          course: courses (
+          course:courses (
             id,
             name_he,
-            category
+            category,
+            code
           )
         )
       `)
       .order('created_at', { ascending: false });
     if (error) setErrorMsg(error.message);
-    setTutors(data || []);
+    setTutors((data as Tutor[]) || []);
   };
 
   // שליפת בקשות הצטרפות
@@ -52,11 +93,11 @@ const TutorsManagement = () => {
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
     if (error) setErrorMsg(error.message);
-    setRequests(data || []);
+    setRequests((data as TutorRequest[]) || []);
   };
 
   // אישור בקשה - כולל קישור לכל קורס אמיתי במערכת
-  const handleApproveRequest = async (id) => {
+  const handleApproveRequest = async (id: string) => {
     setErrorMsg('');
     const request = requests.find(r => r.id === id);
     if (!request) {
@@ -88,7 +129,7 @@ const TutorsManagement = () => {
       if (tutorError || !tutorInsert) throw tutorError || new Error('בעיה ביצירת מורה');
 
       // --- קישור קורסים אמיתי ---
-      let courseIds = [];
+      let courseIds: string[] = [];
       // כל הקורסים האפשריים מהמערכת
       const { data: allCourses, error: coursesError } = await supabase
         .from('courses')
@@ -103,8 +144,8 @@ const TutorsManagement = () => {
           const name = subj.replace(/ \([^)]+\)/, '').replace(/ - ציון: \d+/, '').trim();
 
           // קישור לפי code או name
-          const courseObj = allCourses.find(
-            c => (code && c.code === code) || c.name_he === name
+          const courseObj = (allCourses || []).find(
+            (c: any) => (code && c.code === code) || c.name_he === name
           );
           if (courseObj) {
             courseIds.push(courseObj.id);
@@ -129,17 +170,17 @@ const TutorsManagement = () => {
         .eq('id', id);
 
       await fetchAll();
-    } catch (e) {
+    } catch (e: any) {
       setErrorMsg('שגיאה: ' + (e.message || e));
     }
   };
 
-  const handleRejectRequest = async (id) => {
+  const handleRejectRequest = async (id: string) => {
     await supabase.from('tutor_applications').update({ status: 'rejected' }).eq('id', id);
     fetchRequests();
   };
 
-  const handleDeleteTutor = async (id) => {
+  const handleDeleteTutor = async (id: string) => {
     await supabase.from('tutors').delete().eq('id', id);
     await supabase.from('tutor_courses').delete().eq('tutor_id', id);
     fetchTutors();

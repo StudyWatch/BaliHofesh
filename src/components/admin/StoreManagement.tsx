@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingCart, Plus, Edit, Trash2, Search, Filter, Eye, EyeOff } from 'lucide-react';
+import { ShoppingCart, Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
 
 interface StoreProduct {
   id: string;
@@ -57,43 +57,30 @@ const StoreManagement = () => {
       category: 'ספרים',
       link: 'https://example.com/book',
       status: 'out-of-stock'
-    },
-    // הוסף כאן מוצרים נוספים לדוגמה/מ-DB
+    }
   ]);
   const [editingProduct, setEditingProduct] = useState<StoreProduct | null>(null);
-  const [showDescription, setShowDescription] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  // אוסף קטגוריות ייחודיות ודינאמיות מהמוצרים עצמם (trim לרווחים מיותרים)
-  const uniqueCategories = Array.from(
-    new Set(
-      products
-        .map(p => (p.category || '').trim())
-        .filter(Boolean)
-    )
-  );
+  const categories = ['חטיפים', 'ציוד', 'טכנולוגיה', 'ספרים', 'כלי כתיבה'];
 
   // Filter products based on search and filters
   const filteredProducts = products.filter(product => {
-    const matchesSearch =
-      product.nameHe.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.nameEn.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      !categoryFilter ||
-      (product.category && product.category.trim() === categoryFilter.trim());
+    const matchesSearch = product.nameHe.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.nameEn.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !categoryFilter || product.category === categoryFilter;
     const matchesStatus = !statusFilter || product.status === statusFilter;
+    
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const handleSaveProduct = (productData: Partial<StoreProduct>) => {
     if (editingProduct) {
-      setProducts(prev =>
-        prev.map(product =>
-          product.id === editingProduct.id ? { ...product, ...productData } : product
-        )
-      );
+      setProducts(prev => prev.map(product => 
+        product.id === editingProduct.id ? { ...product, ...productData } : product
+      ));
     } else {
       const newProduct: StoreProduct = {
         id: Date.now().toString(),
@@ -123,16 +110,16 @@ const StoreManagement = () => {
   };
 
   return (
-    <Card className="bg-gradient-to-tr from-gray-50 to-blue-50/30 shadow-xl border-2 border-blue-100 rounded-2xl p-2 sm:p-6">
+    <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl font-extrabold">
-            <ShoppingCart className="w-6 h-6 text-blue-500" />
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5" />
             ניהול החנות הסטודנטיאלית
           </CardTitle>
           <Dialog>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingProduct(null)} className="flex items-center gap-2">
+              <Button onClick={() => setEditingProduct(null)}>
                 <Plus className="w-4 h-4 ml-2" />
                 הוסף מוצר
               </Button>
@@ -143,31 +130,21 @@ const StoreManagement = () => {
                   {editingProduct ? 'עריכת מוצר' : 'הוספת מוצר חדש'}
                 </DialogTitle>
               </DialogHeader>
-              <StoreProductForm
+              <StoreProductForm 
                 product={editingProduct}
-                categories={uniqueCategories}
+                categories={categories}
                 onSave={handleSaveProduct}
               />
             </DialogContent>
           </Dialog>
         </div>
       </CardHeader>
-
       <CardContent>
         {/* Filter Section */}
-        <div className="mb-6 p-4 bg-white/80 rounded-2xl shadow flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-blue-400" />
-            <h3 className="font-bold text-lg text-blue-900">סינון ותצוגה מתקדמת</h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowDescription(v => !v)}
-              className="ml-auto"
-              title={showDescription ? "הסתר תיאור" : "הצג תיאור"}
-            >
-              {showDescription ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </Button>
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="w-5 h-5" />
+            <h3 className="font-medium">סינון ותצווגה</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
@@ -184,8 +161,7 @@ const StoreManagement = () => {
                 <SelectValue placeholder="כל הקטגוריות" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">כל הקטגוריות</SelectItem>
-                {uniqueCategories.map((category) => (
+                {categories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>
@@ -205,100 +181,85 @@ const StoreManagement = () => {
               נקה סינון
             </Button>
           </div>
-          <div className="mt-2 text-xs text-gray-600">
-            מציג <b>{filteredProducts.length}</b> מתוך <b>{products.length}</b> מוצרים
+          <div className="mt-3 text-sm text-gray-600">
+            מציג {filteredProducts.length} מתוך {products.length} מוצרים
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-md bg-white/80">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>שם (עברית)</TableHead>
-                {showDescription && <TableHead>תיאור</TableHead>}
-                <TableHead>מחיר</TableHead>
-                <TableHead>קטגוריה</TableHead>
-                <TableHead>סטטוס</TableHead>
-                <TableHead>פעולות</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-bold text-blue-900">{product.nameHe}</TableCell>
-                  {showDescription && (
-                    <TableCell className="text-xs text-gray-500">{product.descriptionHe}</TableCell>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>שם (עברית)</TableHead>
+              <TableHead>מחיר</TableHead>
+              <TableHead>קטגוריה</TableHead>
+              <TableHead>סטטוס</TableHead>
+              <TableHead>פעולות</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredProducts.map((product) => (
+              <TableRow key={product.id}>
+                <TableCell className="font-medium">{product.nameHe}</TableCell>
+                <TableCell>₪{product.price}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{product.category}</Badge>
+                </TableCell>
+                <TableCell>
+                  {product.status === 'available' ? (
+                    <Badge className="bg-green-100 text-green-800">זמין</Badge>
+                  ) : (
+                    <Badge variant="destructive">אזל מהמלאי</Badge>
                   )}
-                  <TableCell>
-                    <Badge className="bg-green-100 text-green-700 font-bold px-2">₪{product.price}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-800">{product.category}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {product.status === 'available' ? (
-                      <Badge className="bg-green-100 text-green-800">זמין</Badge>
-                    ) : (
-                      <Badge variant="destructive">אזל מהמלאי</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditingProduct(product)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>עריכת מוצר</DialogTitle>
-                          </DialogHeader>
-                          <StoreProductForm
-                            product={product}
-                            categories={uniqueCategories}
-                            onSave={handleSaveProduct}
-                          />
-                        </DialogContent>
-                      </Dialog>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteProduct(product.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredProducts.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={showDescription ? 6 : 5} className="text-center text-gray-400 py-6">
-                    אין מוצרים תואמים להצגה.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setEditingProduct(product)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>עריכת מוצר</DialogTitle>
+                        </DialogHeader>
+                        <StoreProductForm 
+                          product={product}
+                          categories={categories}
+                          onSave={handleSaveProduct}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteProduct(product.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );
 };
 
-const StoreProductForm = ({
-  product,
-  categories,
-  onSave
-}: {
-  product: StoreProduct | null,
+const StoreProductForm = ({ 
+  product, 
+  categories, 
+  onSave 
+}: { 
+  product: StoreProduct | null, 
   categories: string[],
-  onSave: (data: Partial<StoreProduct>) => void
+  onSave: (data: Partial<StoreProduct>) => void 
 }) => {
   const [formData, setFormData] = useState({
     nameHe: product?.nameHe || '',
@@ -339,7 +300,7 @@ const StoreProductForm = ({
           />
         </div>
       </div>
-
+      
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="descriptionHe">תיאור (עברית)</Label>
@@ -421,7 +382,7 @@ const StoreProductForm = ({
         />
       </div>
 
-      <Button type="submit" className="w-full mt-4">
+      <Button type="submit" className="w-full">
         {product ? 'עדכן מוצר' : 'הוסף מוצר'}
       </Button>
     </form>

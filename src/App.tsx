@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
@@ -11,7 +11,7 @@ import AccessibilityButton from "@/components/AccessibilityButton";
 import NotificationOrchestrator from "@/components/notifications/NotificationOrchestrator";
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
-// דפים קיימים
+// דפים
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import Institution from "./pages/Institution";
@@ -32,6 +32,9 @@ import TutorTermsPage from "./pages/TutorTermsPage";
 import AuthCallbackHandler from "@/components/auth/AuthCallbackHandler";
 import ComingSoon from "@/components/ComingSoon";
 
+import { WishlistProvider } from "@/contexts/WishlistContext";
+
+// סל קניות
 export const CartContext = createContext({});
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<any[]>([]);
@@ -42,8 +45,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-import { WishlistProvider } from "@/contexts/WishlistContext";
-
 // --- Auth context ---
 interface AuthContextType {
   user: User | null;
@@ -52,7 +53,6 @@ interface AuthContextType {
   isAdmin: boolean;
   signOut: () => Promise<void>;
 }
-
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -60,11 +60,11 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   signOut: async () => {},
 });
-
 export const useAuth = () => useContext(AuthContext);
 
 const queryClient = new QueryClient();
 
+// --- ספק הרשאות ואימות ---
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -89,14 +89,13 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
         if (error) {
-          console.error("Session error:", error);
           setLoading(false);
           return;
         }
         if (session?.user?.email_confirmed_at) {
           setSession(session);
           setUser(session.user);
-          const adminEmails = ['admin@study.com', 'manager@study.com'];
+          const adminEmails = ['timor34@gmail.com', 'manager@study.com'];
           setIsAdmin(adminEmails.includes(session.user.email || ""));
         } else {
           setSession(null);
@@ -106,7 +105,6 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
       } catch (error) {
         if (!mounted) return;
-        console.error("Auth initialization error:", error);
         setLoading(false);
       }
     };
@@ -119,7 +117,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (event === "SIGNED_IN" && session?.user?.email_confirmed_at) {
           setSession(session);
           setUser(session.user);
-          const adminEmails = ['admin@study.com', 'manager@study.com'];
+          const adminEmails = ['timor34@gmail.com', 'manager@study.com'];
           setIsAdmin(adminEmails.includes(session.user.email || ""));
         } else if (event === "SIGNED_OUT") {
           setSession(null);
@@ -128,7 +126,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else if (event === "TOKEN_REFRESHED" && session) {
           setSession(session);
           setUser(session.user);
-          const adminEmails = ['admin@study.com', 'manager@study.com'];
+          const adminEmails = ['timor34@gmail.com', 'manager@study.com'];
           setIsAdmin(adminEmails.includes(session.user.email || ""));
         }
         setLoading(false);
@@ -148,6 +146,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// -- הגנה על דשבורד למורים פרטיים בלבד --
 const TutorRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const [isTutor, setIsTutor] = useState<boolean | null>(null);
@@ -171,16 +170,45 @@ const TutorRoute = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, loading]);
 
-  if (loading || isTutor === null)
+  if (loading || isTutor === null) {
     return (
       <div className="flex justify-center items-center h-screen bg-white/80">
         <div className="animate-spin w-12 h-12 border-4 border-purple-400 border-t-transparent rounded-full" />
       </div>
     );
+  }
 
-  return isTutor ? <>{children}</> : <Navigate to="/" />;
+  if (!isTutor) {
+    return <Navigate to="/" />;
+  }
+
+  return <>{children}</>;
 };
 
+// -- הגנה לאדמין לפי אימייל בלבד --
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, isAdmin } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-white/80">
+        <div className="animate-spin w-12 h-12 border-4 border-blue-400 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/" />;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" />;
+  }
+
+  return <>{children}</>;
+};
+
+// -- ספקים לכל החנות --
 const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <CartProvider>
     <WishlistProvider>
@@ -189,6 +217,64 @@ const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) =
   </CartProvider>
 );
 
+// -- ה-Wrapper של האפליקציה עם הפניה לאדמין --
+const AppWrapper = () => {
+  const navigate = useNavigate();
+  const { isAdmin, loading } = useAuth();
+
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    // הפניה אוטומטית לאדמין שנמצא בדף הבית בלבד
+    if (!loading && isAdmin && currentPath === "/") {
+      setTimeout(() => {
+        navigate("/admin");
+      }, 100); // דחייה קטנה ליציבות ה-Router
+    }
+  }, [isAdmin, loading, navigate]);
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <main id="main-root" className="flex-1 min-h-[70vh]">
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          <Route path="/courses" element={<Universities />} />
+          <Route path="/universities" element={<Universities />} />
+          <Route path="/institution/:id" element={<Institution />} />
+          <Route path="/course/:id" element={<Course />} />
+          <Route path="/tutors" element={<Tutors />} />
+          <Route path="/tutor/:id" element={<TutorProfile />} />
+          <Route path="/tips" element={<Tips />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/email-verification" element={<EmailVerificationPage />} />
+          <Route path="/my-courses" element={<MyCourses />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/auth/callback" element={<AuthCallbackHandler />} />
+          <Route path="/tutor-dashboard" element={<TutorRoute><TutorDashboard /></TutorRoute>} />
+          <Route path="/store" element={<ComingSoon />} />
+          <Route path="/wishlist" element={<ComingSoon title="רשימת המשאלות תיפתח בקרוב!" />} />
+          <Route path="/shopping-cart" element={<ComingSoon title="העגלה תיפתח בקרוב!" />} />
+          <Route path="/terms" element={<TermsOfUse />} />
+          <Route path="/tutors-terms" element={<TutorTermsPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+
+      <ScrollToTopButton />
+
+      <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50 flex flex-col sm:flex-row justify-center gap-2">
+        <a href="/terms" className="underline text-blue-600 hover:text-blue-800" target="_blank">תנאי שימוש</a>
+        <span className="mx-2 hidden sm:inline">|</span>
+        <a href="/tutors-terms" className="underline text-green-600 hover:text-green-800" target="_blank">תנאי שימוש למורים פרטיים</a>
+      </footer>
+
+      <AccessibilityButton />
+    </div>
+  );
+};
+
+// -- האפליקציה הראשית --
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -198,61 +284,7 @@ const App = () => (
           <Sonner />
           <NotificationOrchestrator />
           <BrowserRouter>
-            <div className="min-h-screen flex flex-col">
-              <main id="main-root" className="flex-1 min-h-[70vh]">
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/admin" element={<Admin />} />
-                  <Route path="/courses" element={<Universities />} />
-                  <Route path="/universities" element={<Universities />} />
-                  <Route path="/institution/:id" element={<Institution />} />
-                  <Route path="/course/:id" element={<Course />} />
-                  <Route path="/tutors" element={<Tutors />} />
-                  <Route path="/tutor/:id" element={<TutorProfile />} />
-                  <Route path="/tips" element={<Tips />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/email-verification" element={<EmailVerificationPage />} />
-                  <Route path="/my-courses" element={<MyCourses />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/auth/callback" element={<AuthCallbackHandler />} />
-                  <Route path="/tutor-dashboard" element={
-                    <TutorRoute>
-                      <TutorDashboard />
-                    </TutorRoute>
-                  } />
-                  {/* דפים חנות והודעות בקרוב */}
-                  <Route path="/store" element={<ComingSoon />} />
-                  <Route path="/wishlist" element={<ComingSoon title="רשימת המשאלות תיפתח בקרוב!" />} />
-                  <Route path="/shopping-cart" element={<ComingSoon title="העגלה תיפתח בקרוב!" />} />
-                  {/* דף תנאי שימוש */}
-                  <Route path="/terms" element={<TermsOfUse />} />
-                  <Route path="/tutors-terms" element={<TutorTermsPage />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
-              <ScrollToTopButton />
-              <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50 flex flex-col sm:flex-row justify-center gap-2">
-                <a
-                  href="/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-blue-600 hover:text-blue-800"
-                >
-                  תנאי שימוש
-                </a>
-                <span className="mx-2 hidden sm:inline">|</span>
-                <a
-                  href="/tutors-terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-green-600 hover:text-green-800"
-                >
-                  תנאי שימוש למורים פרטיים
-                </a>
-              </footer>
-              <AccessibilityButton />
-            </div>
+            <AppWrapper />
           </BrowserRouter>
         </TooltipProvider>
       </LanguageProvider>

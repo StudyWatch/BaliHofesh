@@ -1,22 +1,36 @@
-import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import React, { useState, useMemo } from 'react';
+import {
+  Card, CardHeader, CardTitle, CardContent
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
+} from '@/components/ui/dialog';
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger
+} from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Mail, Send, Trash2, Eye, Search, Users, Filter } from 'lucide-react';
-import { useMessages, useAdminMessages, useSendMessage, useMarkMessageAsRead, useDeleteMessage } from '@/hooks/useMessages';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
+import {
+  MessageSquare, Mail, Send, Trash2, Eye, Search, Users
+} from 'lucide-react';
+import {
+  useAdminMessages, useSendMessage, useMarkMessageAsRead, useDeleteMessage
+} from '@/hooks/useMessages';
 import { useRealUsers } from '@/hooks/useRealUsers';
 import { useToast } from '@/hooks/use-toast';
 
 const MessagesManagement = () => {
   const [activeTab, setActiveTab] = useState('all');
-  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
@@ -27,24 +41,33 @@ const MessagesManagement = () => {
   const markAsReadMutation = useMarkMessageAsRead();
   const deleteMessageMutation = useDeleteMessage();
 
-  const filteredMessages = allMessages.filter((message: any) => {
+  // ממפה מזהה למשתמש לשם (לנוחות בתצוגה)
+  const userMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    users.forEach((u: any) => { map[u.id] = u; });
+    return map;
+  }, [users]);
+
+  // Search/filter
+  const filteredMessages = useMemo(() => allMessages.filter((msg: any) => {
     if (searchTerm) {
-      return message.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             message.subject?.toLowerCase().includes(searchTerm.toLowerCase());
+      return (
+        msg.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        msg.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        userMap[msg.sender_id]?.name?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+        userMap[msg.receiver_id]?.name?.toLowerCase()?.includes(searchTerm.toLowerCase())
+      );
     }
     return true;
-  });
+  }), [allMessages, searchTerm, userMap]);
 
-  const unreadMessages = filteredMessages.filter((m: any) => !m.is_read);
-  const readMessages = filteredMessages.filter((m: any) => m.is_read);
+  const unreadMessages = useMemo(() => filteredMessages.filter((m: any) => !m.is_read), [filteredMessages]);
+  const readMessages = useMemo(() => filteredMessages.filter((m: any) => m.is_read), [filteredMessages]);
 
   const handleSendMessage = (messageData: any) => {
     sendMessageMutation.mutate(messageData, {
       onSuccess: () => {
-        toast({
-          title: "הצלחה",
-          description: "ההודעה נשלחה בהצלחה"
-        });
+        toast({ title: "הצלחה", description: "ההודעה נשלחה בהצלחה" });
         setIsComposeOpen(false);
       },
       onError: () => {
@@ -57,80 +80,68 @@ const MessagesManagement = () => {
     });
   };
 
-  const handleMarkAsRead = (messageId: string) => {
-    markAsReadMutation.mutate(messageId);
-  };
+  const handleMarkAsRead = (messageId: string) => markAsReadMutation.mutate(messageId);
 
   const handleDeleteMessage = (messageId: string) => {
-    if (confirm('האם אתה בטוח שברצונך למחוק את ההודעה?')) {
+    if (window.confirm('האם אתה בטוח שברצונך למחוק את ההודעה?')) {
       deleteMessageMutation.mutate(messageId, {
-        onSuccess: () => {
-          toast({
-            title: "הצלחה",
-            description: "ההודעה נמחקה"
-          });
-        }
+        onSuccess: () => toast({ title: "ההודעה נמחקה" }),
       });
     }
   };
 
   const getDisplayMessages = () => {
-    switch (activeTab) {
-      case 'unread':
-        return unreadMessages;
-      case 'read':
-        return readMessages;
-      default:
-        return filteredMessages;
-    }
+    if (activeTab === 'unread') return unreadMessages;
+    if (activeTab === 'read') return readMessages;
+    return filteredMessages;
   };
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="border-2 border-blue-100 bg-white/90 dark:bg-blue-950/40">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
               <MessageSquare className="w-5 h-5" />
-              ניהול הודעות פנימיות
+              <span>ניהול הודעות פנימיות</span>
+              <Badge variant="secondary">{allMessages.length} הודעות</Badge>
             </CardTitle>
-            <div className="flex gap-2">
-              <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Send className="w-4 h-4 ml-2" />
-                    כתוב הודעה חדשה
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>הודעה חדשה</DialogTitle>
-                  </DialogHeader>
-                  <ComposeMessageForm
-                    users={users}
-                    onSend={handleSendMessage}
-                    isLoading={sendMessageMutation.isPending}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
+            <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Send className="w-4 h-4 ml-2" />
+                  כתוב הודעה חדשה
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>הודעה חדשה</DialogTitle>
+                </DialogHeader>
+                <ComposeMessageForm
+                  users={users}
+                  onSend={handleSendMessage}
+                  isLoading={sendMessageMutation.isPending}
+                />
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Search and Stats */}
+          {/* Search & Stats */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
               <Input
-                placeholder="חיפוש הודעות..."
+                placeholder="חיפוש הודעות, נושא, שם משתמש..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
+                autoFocus
               />
             </div>
             <div className="flex gap-2">
-              <Badge variant="outline">{allMessages.length} סה"כ</Badge>
-              <Badge variant="outline">{unreadMessages.length} לא נקראו</Badge>
+              <Badge variant="outline" className="bg-blue-50 text-blue-800">{unreadMessages.length} לא נקראו</Badge>
+              <Badge variant="outline" className="bg-green-50 text-green-800">{readMessages.length} נקראו</Badge>
             </div>
           </div>
 
@@ -142,71 +153,86 @@ const MessagesManagement = () => {
             </TabsList>
 
             <TabsContent value={activeTab} className="mt-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>שולח</TableHead>
-                    <TableHead>נמען</TableHead>
-                    <TableHead>נושא</TableHead>
-                    <TableHead>תאריך</TableHead>
-                    <TableHead>סטטוס</TableHead>
-                    <TableHead>פעולות</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getDisplayMessages().map((message: any) => (
-                    <TableRow key={message.id}>
-                      <TableCell>{message.sender_id}</TableCell>
-                      <TableCell>{message.receiver_id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{message.subject || 'ללא נושא'}</div>
-                          <div className="text-sm text-gray-500 truncate max-w-[200px]">
-                            {message.content}
+              <div className="overflow-x-auto rounded-lg border border-blue-100 bg-white/80 dark:bg-blue-950/20">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>שולח</TableHead>
+                      <TableHead>נמען</TableHead>
+                      <TableHead>נושא</TableHead>
+                      <TableHead>תאריך</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>פעולות</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {getDisplayMessages().map((message: any) => (
+                      <TableRow key={message.id} className={message.is_read ? "" : "bg-blue-50/40"}>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Users className="w-4 h-4 text-blue-400" />
+                            <span>
+                              {userMap[message.sender_id]?.name || userMap[message.sender_id]?.email || message.sender_id}
+                            </span>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(message.created_at).toLocaleDateString('he-IL')}
-                      </TableCell>
-                      <TableCell>
-                        {message.is_read ? (
-                          <Badge variant="secondary">נקראה</Badge>
-                        ) : (
-                          <Badge>חדשה</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedMessage(message)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {!message.is_read && (
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Mail className="w-4 h-4 text-green-400" />
+                            <span>
+                              {userMap[message.receiver_id]?.name || userMap[message.receiver_id]?.email || message.receiver_id}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{message.subject || 'ללא נושא'}</div>
+                            <div className="text-sm text-gray-500 truncate max-w-[180px]">
+                              {message.content}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(message.created_at).toLocaleDateString('he-IL', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        </TableCell>
+                        <TableCell>
+                          {message.is_read
+                            ? <Badge variant="secondary">נקראה</Badge>
+                            : <Badge className="bg-blue-600 text-white">חדשה</Badge>
+                          }
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleMarkAsRead(message.id)}
+                              onClick={() => setSelectedMessage(message)}
                             >
-                              סמן כנקראה
+                              <Eye className="w-4 h-4" />
                             </Button>
-                          )}
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteMessage(message.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                            {!message.is_read && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleMarkAsRead(message.id)}
+                              >
+                                סמן כנקראה
+                              </Button>
+                            )}
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteMessage(message.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               {getDisplayMessages().length === 0 && (
                 <div className="text-center py-8">
@@ -233,27 +259,31 @@ const MessagesManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>שולח</Label>
-                  <div className="text-sm">{(selectedMessage as any).sender_id}</div>
+                  <div className="text-sm">
+                    {userMap[selectedMessage.sender_id]?.name || userMap[selectedMessage.sender_id]?.email}
+                  </div>
                 </div>
                 <div>
                   <Label>נמען</Label>
-                  <div className="text-sm">{(selectedMessage as any).receiver_id}</div>
+                  <div className="text-sm">
+                    {userMap[selectedMessage.receiver_id]?.name || userMap[selectedMessage.receiver_id]?.email}
+                  </div>
                 </div>
               </div>
               <div>
                 <Label>נושא</Label>
-                <div className="text-sm">{(selectedMessage as any).subject || 'ללא נושא'}</div>
+                <div className="text-sm">{selectedMessage.subject || 'ללא נושא'}</div>
               </div>
               <div>
                 <Label>תוכן</Label>
                 <div className="p-3 bg-gray-50 rounded-md whitespace-pre-wrap">
-                  {(selectedMessage as any).content}
+                  {selectedMessage.content}
                 </div>
               </div>
               <div>
                 <Label>תאריך</Label>
                 <div className="text-sm">
-                  {new Date((selectedMessage as any).created_at).toLocaleString('he-IL')}
+                  {new Date(selectedMessage.created_at).toLocaleString('he-IL')}
                 </div>
               </div>
             </div>
@@ -269,22 +299,23 @@ const ComposeMessageForm = ({ users, onSend, isLoading }: any) => {
     receiver_id: '',
     subject: '',
     content: '',
-    course_id: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.receiver_id || !formData.content) return;
     onSend(formData);
-    setFormData({ receiver_id: '', subject: '', content: '', course_id: '' });
+    setFormData({ receiver_id: '', subject: '', content: '' });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="receiver">נמען</Label>
-        <Select 
-          value={formData.receiver_id} 
-          onValueChange={(value) => setFormData(prev => ({ ...prev, receiver_id: value }))}
+        <Select
+          value={formData.receiver_id}
+          onValueChange={value => setFormData(prev => ({ ...prev, receiver_id: value }))}
+          required
         >
           <SelectTrigger>
             <SelectValue placeholder="בחר נמען" />
@@ -304,7 +335,7 @@ const ComposeMessageForm = ({ users, onSend, isLoading }: any) => {
         <Input
           id="subject"
           value={formData.subject}
-          onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
+          onChange={e => setFormData(prev => ({ ...prev, subject: e.target.value }))}
           placeholder="נושא ההודעה"
         />
       </div>
@@ -314,7 +345,7 @@ const ComposeMessageForm = ({ users, onSend, isLoading }: any) => {
         <Textarea
           id="content"
           value={formData.content}
-          onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+          onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
           placeholder="כתוב את תוכן ההודעה כאן..."
           required
           rows={6}
@@ -322,7 +353,7 @@ const ComposeMessageForm = ({ users, onSend, isLoading }: any) => {
       </div>
 
       <div className="flex gap-3 pt-4">
-        <Button type="submit" disabled={isLoading} className="flex-1">
+        <Button type="submit" disabled={isLoading} className="flex-1 bg-blue-700 hover:bg-blue-800 text-white">
           {isLoading ? 'שולח...' : 'שלח הודעה'}
         </Button>
       </div>
