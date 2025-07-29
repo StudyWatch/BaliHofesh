@@ -31,7 +31,6 @@ import TermsOfUse from "./pages/TermsOfUse";
 import TutorTermsPage from "./pages/TutorTermsPage";
 import AuthCallbackHandler from "@/components/auth/AuthCallbackHandler";
 import ComingSoon from "@/components/ComingSoon";
-
 import { WishlistProvider } from "@/contexts/WishlistContext";
 
 // סל קניות
@@ -197,11 +196,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/" />;
-  }
-
-  if (!isAdmin) {
+  if (!user || !isAdmin) {
     return <Navigate to="/" />;
   }
 
@@ -222,13 +217,52 @@ const AppWrapper = () => {
   const navigate = useNavigate();
   const { isAdmin, loading } = useAuth();
 
+  // הפעל כאן: true = מצב תחזוקה | false = אתר רגיל
+  const underMaintenance = true;
+
+  if (underMaintenance) {
+    return (
+      <div dir="rtl" className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 text-center px-4">
+        <div className="max-w-md space-y-6">
+          <h1 className="text-4xl font-bold text-gray-800 dark:text-white">🚧 האתר בהפסקת תחזוקה</h1>
+          <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed">
+            אנחנו מבצעים שדרוגים ושיפורים 💡<br />
+            נחזור לפעולה מלאה ממש בקרוב.<br />תודה על הסבלנות 🙏
+          </p>
+          <div className="text-sm text-gray-500 dark:text-gray-400 space-y-2">
+            <p>📩 לפניות ושאלות:</p>
+            <p>
+              וואטסאפ:{" "}
+              <a
+                href="https://chat.whatsapp.com/K9c6SXQd8gUFrWLFZeBRDO"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-green-600 dark:text-green-400 font-medium"
+              >
+                קבוצת הוואטסאפ של באלי חופש
+              </a>
+            </p>
+            <p>
+              מייל:{" "}
+              <a
+                href="mailto:balihofeshe@gmail.com"
+                className="underline text-blue-600 dark:text-blue-400 font-medium"
+              >
+                balihofeshe@gmail.com
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     const currentPath = window.location.pathname;
-    // הפניה אוטומטית לאדמין שנמצא בדף הבית בלבד
     if (!loading && isAdmin && currentPath === "/") {
       setTimeout(() => {
         navigate("/admin");
-      }, 100); // דחייה קטנה ליציבות ה-Router
+      }, 100);
     }
   }, [isAdmin, loading, navigate]);
 
@@ -264,9 +298,13 @@ const AppWrapper = () => {
       <ScrollToTopButton />
 
       <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50 flex flex-col sm:flex-row justify-center gap-2">
-        <a href="/terms" className="underline text-blue-600 hover:text-blue-800" target="_blank">תנאי שימוש</a>
+        <a href="/terms" className="underline text-blue-600 hover:text-blue-800" target="_blank" rel="noopener noreferrer">
+          תנאי שימוש
+        </a>
         <span className="mx-2 hidden sm:inline">|</span>
-        <a href="/tutors-terms" className="underline text-green-600 hover:text-green-800" target="_blank">תנאי שימוש למורים פרטיים</a>
+        <a href="/tutors-terms" className="underline text-green-600 hover:text-green-800" target="_blank" rel="noopener noreferrer">
+          תנאי שימוש למורים פרטיים
+        </a>
       </footer>
 
       <AccessibilityButton />
