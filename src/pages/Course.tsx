@@ -18,6 +18,14 @@ import SaveToAccountButton from '@/components/course/SaveToAccountButton';
 import CourseAssignmentsSection from '@/components/course/CourseAssignmentsSection';
 import ComingSoonSection from '@/components/course/ComingSoonSection';
 
+// אם יש export default - זה יעבוד, אחרת תעבור לאופציה הבאה
+// import CourseReviewsSection from '@/components/course/CourseReviewsSection';
+// אם אין export default - תשתמש בזה:
+import CourseReviewsSection from '@/components/course/CourseReviewsSection';
+
+import EnhancedLecturerRatingsSection from '@/components/course/EnhancedLecturerRatingsSection';
+import CourseNavigationSidebar from '@/components/course/CourseNavigationSidebar';
+
 // עיצוב סקשן רגיל
 const sectionBox = "rounded-2xl shadow-lg bg-white/80 dark:bg-gray-900/80 border border-gray-200 p-5 lg:p-8";
 // עיצוב קומפקטי במיוחד לסקשן המטלות
@@ -111,9 +119,13 @@ const Course = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-indigo-100" dir={dir}>
       <Header />
+
+      {/* Quick Navigation Sidebar */}
+      <CourseNavigationSidebar />
+
       <div className="container mx-auto px-2 md:px-4 py-8 md:py-10 space-y-7 md:space-y-10">
         {/* כותרת קורס עליונה */}
-        <Card className={`${gradientBox} rounded-3xl mb-0`}>
+        <Card id="course-header" className={`${gradientBox} rounded-3xl mb-0`}>
           <CardContent className="p-5 md:p-8">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="flex-1">
@@ -190,29 +202,46 @@ const Course = () => {
 
         {/* מטלות הגשה - עיצוב קומפקטי */}
         <div className={compactSectionBox}>
-          <CourseAssignmentsSection courseId={course.id} courseName={course.name_he} compact />
+          <CourseAssignmentsSection courseId={course.id} courseName={course.name_he} />
         </div>
 
         {/* מפגשי לימוד משותפים */}
-        <div className={sectionBox}>
+        <div id="shared-sessions" className={sectionBox}>
           <SharedSessionsSection courseId={course.id} isLoggedIn={isLoggedIn || isAdmin} />
         </div>
 
         {/* שותפי לימוד */}
-        <div className={sectionBox}>
+        <div id="study-partners" className={sectionBox}>
           <StudyPartnersListSection courseId={course.id} isLoggedIn={isLoggedIn} />
         </div>
 
         {/* מורים פרטיים */}
-        <div className={sectionBox}>
+        <div id="tutors-section" className={sectionBox}>
           <RelevantTutors
             courseId={course.id}
             courseName={course.name_he}
           />
         </div>
 
+        {/* ביקורות וטיפים של סטודנטים */}
+        <div id="course-reviews" className={sectionBox}>
+          <CourseReviewsSection
+            courseId={course.id}
+            courseName={course.name_he}
+            isLoggedIn={isLoggedIn}
+          />
+        </div>
+
+        {/* דירוג מרצים מתקדם */}
+        <div className={sectionBox}>
+          <EnhancedLecturerRatingsSection
+            courseId={course.id}
+            courseName={course.name_he}
+          />
+        </div>
+
         {/* מרתון */}
-        <div className={`${sectionBox} text-center text-lg font-semibold text-purple-700`}>
+        <div id="marathon-section" className={`${sectionBox} text-center text-lg font-semibold text-purple-700`}>
           📣 מרתונים ייפתחו לקראת הבחינות – נעדכן בהמשך!
         </div>
 

@@ -1,3 +1,5 @@
+// App.tsx
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,7 +13,6 @@ import AccessibilityButton from "@/components/AccessibilityButton";
 import NotificationOrchestrator from "@/components/notifications/NotificationOrchestrator";
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
-// דפים
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import Institution from "./pages/Institution";
@@ -33,7 +34,7 @@ import AuthCallbackHandler from "@/components/auth/AuthCallbackHandler";
 import ComingSoon from "@/components/ComingSoon";
 import { WishlistProvider } from "@/contexts/WishlistContext";
 
-// סל קניות
+// --- סל קניות ---
 export const CartContext = createContext({});
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<any[]>([]);
@@ -212,50 +213,81 @@ const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) =
   </CartProvider>
 );
 
+// -- קומפוננטת תחזוקה וסיסמה -- //
+const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => {
+  // כל ההוקים למעלה לפי הכללים!
+  const underMaintenance = true; // לשנות ל-false אם רוצים להוריד הגנה
+  const secretPassword = "A1m2i3r4"; // לשנות לסיסמה שלך
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("preview_password");
+    if (saved === secretPassword) setAuthorized(true);
+    else setAuthorized(false);
+  }, []);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (password === secretPassword) {
+      localStorage.setItem("preview_password", password);
+      setAuthorized(true);
+    } else {
+      alert("סיסמה שגויה");
+      setPassword("");
+    }
+  };
+
+  // כל התנאים רק אחרי כל ה-hooks!
+  if (authorized === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+        <div className="text-xl text-gray-500 dark:text-gray-300">טוען...</div>
+      </div>
+    );
+  }
+
+  if (underMaintenance && !authorized) {
+    return (
+      <div dir="rtl" className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 text-center px-4">
+        <form
+          onSubmit={handleSubmit}
+          className="max-w-md space-y-6 w-full bg-white dark:bg-gray-800 shadow-xl rounded-xl p-8"
+          autoComplete="off"
+        >
+          <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-2">🚧 האתר בשיפוצים</h1>
+          <p className="text-gray-600 dark:text-gray-300 text-lg mb-4">
+            לצפייה יש להזין סיסמה מורכבת.<br />
+            האתר פתוח כעת רק לבדיקה.
+          </p>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 rounded border border-gray-300 dark:border-gray-600 text-lg"
+            placeholder="הכנס סיסמה"
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-lg hover:bg-blue-700 transition"
+          >
+            אישור
+          </button>
+          <div className="text-xs text-gray-400 mt-2">לבעיות, פנה למנהל האתר</div>
+        </form>
+      </div>
+    );
+  }
+
+  // הכל רגיל (כל האתר וכל ה-providers)
+  return <>{children}</>;
+};
+
 // -- ה-Wrapper של האפליקציה עם הפניה לאדמין --
 const AppWrapper = () => {
   const navigate = useNavigate();
   const { isAdmin, loading } = useAuth();
-
-  // הפעל כאן: true = מצב תחזוקה | false = אתר רגיל
-  const underMaintenance = true;
-
-  if (underMaintenance) {
-    return (
-      <div dir="rtl" className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 text-center px-4">
-        <div className="max-w-md space-y-6">
-          <h1 className="text-4xl font-bold text-gray-800 dark:text-white">🚧 האתר בהפסקת תחזוקה</h1>
-          <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed">
-            אנחנו מבצעים שדרוגים ושיפורים 💡<br />
-            נחזור לפעולה מלאה ממש בקרוב.<br />תודה על הסבלנות 🙏
-          </p>
-          <div className="text-sm text-gray-500 dark:text-gray-400 space-y-2">
-            <p>📩 לפניות ושאלות:</p>
-            <p>
-              וואטסאפ:{" "}
-              <a
-                href="https://chat.whatsapp.com/K9c6SXQd8gUFrWLFZeBRDO"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-green-600 dark:text-green-400 font-medium"
-              >
-                קבוצת הוואטסאפ של באלי חופש
-              </a>
-            </p>
-            <p>
-              מייל:{" "}
-              <a
-                href="mailto:balihofeshe@gmail.com"
-                className="underline text-blue-600 dark:text-blue-400 font-medium"
-              >
-                balihofeshe@gmail.com
-              </a>
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   useEffect(() => {
     const currentPath = window.location.pathname;
@@ -322,7 +354,9 @@ const App = () => (
           <Sonner />
           <NotificationOrchestrator />
           <BrowserRouter>
-            <AppWrapper />
+            <MaintenanceAndPassword>
+              <AppWrapper />
+            </MaintenanceAndPassword>
           </BrowserRouter>
         </TooltipProvider>
       </LanguageProvider>

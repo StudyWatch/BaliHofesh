@@ -1,4 +1,4 @@
-import { AssignmentType } from '@/types/supabase-extensions';
+import { AssignmentType } from '@/lib/supabase-extensions';
 
 export type NotificationType = 'assignment' | 'exam' | 'session' | 'partner' | 'system' | 'message';
 

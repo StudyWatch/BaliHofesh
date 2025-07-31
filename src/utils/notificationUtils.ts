@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { NotificationRecord } from '@/types/supabase-extensions';
+import { NotificationRecord } from '@/lib/supabase-extensions';
 import { notificationTemplates, NotificationType } from './notificationTemplates';
 
 export class NotificationManager {
