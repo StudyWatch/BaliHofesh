@@ -1,150 +1,200 @@
+// src/components/admin/StoreManagement.tsx
 import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Card, CardHeader, CardTitle, CardContent,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingCart, Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  ShoppingCart, Plus, Edit, Trash2, Search, Filter, Eye, EyeOff, Image,
+  BadgePercent, Star, DollarSign, Heart, TrendingUp, Gift,
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface StoreProduct {
+// הגדרה אחידה של הטיפוס
+interface Product {
   id: string;
-  nameHe: string;
-  nameEn: string;
-  descriptionHe: string;
-  descriptionEn: string;
+  name_he: string;
+  name_en: string;
+  description_he?: string;
+  description_en?: string;
   price: number;
+  original_price?: number;
   category: string;
-  link: string;
-  imageUrl?: string;
-  status: 'available' | 'out-of-stock';
+  tags?: string[];
+  image_url?: string;
+  link?: string;
+  is_subsidized?: boolean;
+  is_popular?: boolean;
+  is_new?: boolean;
+  is_exclusive?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  type?: string;
+  benefit_value?: number;
+  is_monetizable?: boolean;
+  priority?: boolean;
 }
 
 const StoreManagement = () => {
-  const [products, setProducts] = useState<StoreProduct[]>([
-    {
-      id: '1',
-      nameHe: 'מחשבון מדעי',
-      nameEn: 'Scientific Calculator',
-      descriptionHe: 'מחשבון מדעי איכותי לבחינות',
-      descriptionEn: 'High quality scientific calculator for exams',
-      price: 89,
-      category: 'ציוד',
-      link: 'https://example.com/calculator',
-      status: 'available'
-    },
-    {
-      id: '2',
-      nameHe: 'חטיף אנרגיה',
-      nameEn: 'Energy Bar',
-      descriptionHe: 'חטיף אנרגיה לתקופת הבחינות',
-      descriptionEn: 'Energy bar for exam period',
-      price: 12,
-      category: 'חטיפים',
-      link: 'https://example.com/energy-bar',
-      status: 'available'
-    },
-    {
-      id: '3',
-      nameHe: 'ספר לימוד',
-      nameEn: 'Textbook',
-      descriptionHe: 'ספר לימוד איכותי',
-      descriptionEn: 'Quality textbook',
-      price: 120,
-      category: 'ספרים',
-      link: 'https://example.com/book',
-      status: 'out-of-stock'
-    }
-  ]);
-  const [editingProduct, setEditingProduct] = useState<StoreProduct | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showDescription, setShowDescription] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const categories = ['חטיפים', 'ציוד', 'טכנולוגיה', 'ספרים', 'כלי כתיבה'];
-
-  // Filter products based on search and filters
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.nameHe.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.nameEn.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !categoryFilter || product.category === categoryFilter;
-    const matchesStatus = !statusFilter || product.status === statusFilter;
-    
-    return matchesSearch && matchesCategory && matchesStatus;
+  // שליפת מוצרים
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Product[];
+    },
   });
 
-  const handleSaveProduct = (productData: Partial<StoreProduct>) => {
-    if (editingProduct) {
-      setProducts(prev => prev.map(product => 
-        product.id === editingProduct.id ? { ...product, ...productData } : product
-      ));
-    } else {
-      const newProduct: StoreProduct = {
-        id: Date.now().toString(),
-        nameHe: '',
-        nameEn: '',
-        descriptionHe: '',
-        descriptionEn: '',
-        price: 0,
-        category: '',
-        link: '',
-        status: 'available',
-        ...productData
-      } as StoreProduct;
-      setProducts(prev => [...prev, newProduct]);
-    }
-    setEditingProduct(null);
-  };
+  // קטגוריות מסוננות (בלי ריקים)
+  const uniqueCategories = Array.from(
+    new Set(products.map((p) => (p.category || '').trim()).filter(Boolean))
+  );
 
-  const handleDeleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(product => product.id !== id));
-  };
+  // יצירה/עדכון מוצר
+  const upsertProduct = useMutation({
+    mutationFn: async (productData: Partial<Product>) => {
+      if (editingProduct) {
+        const { error } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProduct.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('products')
+          .insert([productData]);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast({ title: 'הצלחה', description: editingProduct ? 'המוצר עודכן!' : 'מוצר נוסף!' });
+      setEditingProduct(null);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: (err: any) => {
+      toast({ title: 'שגיאה', description: err.message || 'פעולה נכשלה', variant: 'destructive' });
+    },
+  });
 
+  // מחיקת מוצר
+  const deleteProduct = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'הצלחה', description: 'המוצר נמחק!' });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+
+  // ניקוי כל הפילטרים
   const clearFilters = () => {
     setSearchTerm('');
     setCategoryFilter('');
     setStatusFilter('');
   };
 
+  // סינון חכם
+  const filteredProducts = products.filter((product) => {
+    const matchesSearch =
+      (product.name_he?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
+      (product.name_en?.toLowerCase().includes(searchTerm.toLowerCase()) || '');
+    const matchesCategory = !categoryFilter || (product.category && product.category.trim() === categoryFilter.trim());
+    const matchesStatus = !statusFilter || (
+      (statusFilter === 'available' && !product.is_exclusive) ||
+      (statusFilter === 'out-of-stock' && product.is_exclusive)
+    );
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  // עיצוב דינאמי לבאדג׳ים
+  const productBadges = (product: Product) => (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {product.is_new && <Badge className="bg-green-100 text-green-800 flex items-center gap-1"><Star className="w-3 h-3" />חדש</Badge>}
+      {product.is_popular && <Badge className="bg-pink-100 text-pink-700 flex items-center gap-1"><TrendingUp className="w-3 h-3" />פופולרי</Badge>}
+      {product.is_subsidized && <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1"><Gift className="w-3 h-3" />מסובסד</Badge>}
+      {product.is_monetizable && <Badge className="bg-yellow-100 text-yellow-700 flex items-center gap-1"><DollarSign className="w-3 h-3" />אפיק רווח</Badge>}
+      {product.is_exclusive && <Badge className="bg-gray-200 text-gray-700">בלעדי</Badge>}
+    </div>
+  );
+
   return (
-    <Card>
+    <Card className="bg-gradient-to-tr from-gray-50 to-blue-100/40 shadow-2xl border-2 border-blue-100 rounded-3xl p-2 sm:p-8">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5" />
-            ניהול החנות הסטודנטיאלית
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2 text-2xl font-extrabold">
+            <ShoppingCart className="w-8 h-8 text-blue-600" />
+            <span>ניהול החנות הסטודנטיאלית</span>
           </CardTitle>
-          <Dialog>
+          <Dialog open={!!editingProduct} onOpenChange={(v) => { if (!v) setEditingProduct(null); }}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingProduct(null)}>
-                <Plus className="w-4 h-4 ml-2" />
+              <Button
+                onClick={() => setEditingProduct(null)}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-800 text-white font-bold shadow"
+              >
+                <Plus className="w-5 h-5 ml-2" />
                 הוסף מוצר
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl rounded-2xl bg-white/95 shadow-2xl border border-blue-200">
               <DialogHeader>
                 <DialogTitle>
                   {editingProduct ? 'עריכת מוצר' : 'הוספת מוצר חדש'}
                 </DialogTitle>
               </DialogHeader>
-              <StoreProductForm 
+              <ProductForm
                 product={editingProduct}
-                categories={categories}
-                onSave={handleSaveProduct}
+                categories={uniqueCategories}
+                onSave={data => upsertProduct.mutate(data)}
+                isLoading={upsertProduct.isPending}
               />
             </DialogContent>
           </Dialog>
         </div>
       </CardHeader>
+
       <CardContent>
         {/* Filter Section */}
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5" />
-            <h3 className="font-medium">סינון ותצווגה</h3>
+        <div className="mb-8 p-4 bg-white/80 rounded-2xl shadow flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-blue-400" />
+            <h3 className="font-bold text-lg text-blue-900">סינון ותצוגה מתקדמת</h3>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowDescription((v) => !v)}
+              className="ml-auto"
+              title={showDescription ? "הסתר תיאור" : "הצג תיאור"}
+            >
+              {showDescription ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
@@ -161,11 +211,14 @@ const StoreManagement = () => {
                 <SelectValue placeholder="כל הקטגוריות" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
+                <SelectItem value="">כל הקטגוריות</SelectItem>
+                {uniqueCategories
+                  .filter(category => !!category)
+                  .map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -173,154 +226,193 @@ const StoreManagement = () => {
                 <SelectValue placeholder="כל הסטטוסים" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">כל הסטטוסים</SelectItem>
                 <SelectItem value="available">זמין</SelectItem>
-                <SelectItem value="out-of-stock">אזל מהמלאי</SelectItem>
+                <SelectItem value="out-of-stock">בלעדי / לא זמין</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={clearFilters}>
               נקה סינון
             </Button>
           </div>
-          <div className="mt-3 text-sm text-gray-600">
-            מציג {filteredProducts.length} מתוך {products.length} מוצרים
+          <div className="mt-2 text-xs text-gray-600">
+            מציג <b>{filteredProducts.length}</b> מתוך <b>{products.length}</b> מוצרים
           </div>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>שם (עברית)</TableHead>
-              <TableHead>מחיר</TableHead>
-              <TableHead>קטגוריה</TableHead>
-              <TableHead>סטטוס</TableHead>
-              <TableHead>פעולות</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredProducts.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell className="font-medium">{product.nameHe}</TableCell>
-                <TableCell>₪{product.price}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{product.category}</Badge>
-                </TableCell>
-                <TableCell>
-                  {product.status === 'available' ? (
-                    <Badge className="bg-green-100 text-green-800">זמין</Badge>
-                  ) : (
-                    <Badge variant="destructive">אזל מהמלאי</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setEditingProduct(product)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>עריכת מוצר</DialogTitle>
-                        </DialogHeader>
-                        <StoreProductForm 
-                          product={product}
-                          categories={categories}
-                          onSave={handleSaveProduct}
-                        />
-                      </DialogContent>
-                    </Dialog>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteProduct(product.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+        {/* טבלה */}
+        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-lg bg-white/80">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>תמונה</TableHead>
+                <TableHead>שם (עברית)</TableHead>
+                {showDescription && <TableHead>תיאור</TableHead>}
+                <TableHead>מחיר</TableHead>
+                <TableHead>קטגוריה</TableHead>
+                <TableHead>תגים</TableHead>
+                <TableHead>סטטוס</TableHead>
+                <TableHead>פעולות</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredProducts.map((product) => (
+                <TableRow key={product.id} className="hover:bg-blue-50/40">
+                  <TableCell>
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name_he}
+                        className="w-16 h-16 rounded-xl object-cover shadow"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-xl">
+                        <Image className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-bold text-blue-900">{product.name_he}</TableCell>
+                  {showDescription && (
+                    <TableCell className="text-xs text-gray-600">{product.description_he}</TableCell>
+                  )}
+                  <TableCell>
+                    <Badge className="bg-green-100 text-green-700 font-bold px-2">
+                      ₪{product.price}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-800">
+                      {product.category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {productBadges(product)}
+                  </TableCell>
+                  <TableCell>
+                    {product.is_exclusive ? (
+                      <Badge variant="destructive">בלעדי/לא זמין</Badge>
+                    ) : (
+                      <Badge className="bg-green-100 text-green-800">זמין</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingProduct(product)}
+                        title="ערוך מוצר"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteProduct.mutate(product.id)}
+                        title="מחק מוצר"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredProducts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={showDescription ? 8 : 7} className="text-center text-gray-400 py-6">
+                    אין מוצרים תואמים להצגה.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
 };
 
-const StoreProductForm = ({ 
-  product, 
-  categories, 
-  onSave 
-}: { 
-  product: StoreProduct | null, 
-  categories: string[],
-  onSave: (data: Partial<StoreProduct>) => void 
+// טופס הוספה/עריכה למוצר, מעוצב במיוחד
+const ProductForm = ({
+  product,
+  categories,
+  onSave,
+  isLoading,
+}: {
+  product: Product | null;
+  categories: string[];
+  onSave: (data: Partial<Product>) => void;
+  isLoading?: boolean;
 }) => {
-  const [formData, setFormData] = useState({
-    nameHe: product?.nameHe || '',
-    nameEn: product?.nameEn || '',
-    descriptionHe: product?.descriptionHe || '',
-    descriptionEn: product?.descriptionEn || '',
+  const [formData, setFormData] = useState<Partial<Product>>({
+    name_he: product?.name_he || '',
+    name_en: product?.name_en || '',
+    description_he: product?.description_he || '',
+    description_en: product?.description_en || '',
     price: product?.price || 0,
     category: product?.category || '',
     link: product?.link || '',
-    imageUrl: product?.imageUrl || '',
-    status: product?.status || 'available'
+    image_url: product?.image_url || '',
+    is_exclusive: product?.is_exclusive || false,
+    is_popular: product?.is_popular || false,
+    is_new: product?.is_new || false,
+    is_subsidized: product?.is_subsidized || false,
+    is_monetizable: product?.is_monetizable || false,
+    type: product?.type || '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.category) {
+      alert('חובה לבחור קטגוריה!');
+      return;
+    }
     onSave(formData);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="nameHe">שם המוצר (עברית)</Label>
+          <Label htmlFor="name_he">שם המוצר (עברית)</Label>
           <Input
-            id="nameHe"
-            value={formData.nameHe}
-            onChange={(e) => setFormData(prev => ({ ...prev, nameHe: e.target.value }))}
+            id="name_he"
+            value={formData.name_he}
+            onChange={(e) => setFormData((prev) => ({ ...prev, name_he: e.target.value }))}
             required
           />
         </div>
         <div>
-          <Label htmlFor="nameEn">שם המוצר (אנגלית)</Label>
+          <Label htmlFor="name_en">שם המוצר (אנגלית)</Label>
           <Input
-            id="nameEn"
-            value={formData.nameEn}
-            onChange={(e) => setFormData(prev => ({ ...prev, nameEn: e.target.value }))}
+            id="name_en"
+            value={formData.name_en}
+            onChange={(e) => setFormData((prev) => ({ ...prev, name_en: e.target.value }))}
             required
           />
         </div>
       </div>
-      
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="descriptionHe">תיאור (עברית)</Label>
+          <Label htmlFor="description_he">תיאור (עברית)</Label>
           <Textarea
-            id="descriptionHe"
-            value={formData.descriptionHe}
-            onChange={(e) => setFormData(prev => ({ ...prev, descriptionHe: e.target.value }))}
+            id="description_he"
+            value={formData.description_he}
+            onChange={(e) => setFormData((prev) => ({ ...prev, description_he: e.target.value }))}
+            rows={2}
           />
         </div>
         <div>
-          <Label htmlFor="descriptionEn">תיאור (אנגלית)</Label>
+          <Label htmlFor="description_en">תיאור (אנגלית)</Label>
           <Textarea
-            id="descriptionEn"
-            value={formData.descriptionEn}
-            onChange={(e) => setFormData(prev => ({ ...prev, descriptionEn: e.target.value }))}
+            id="description_en"
+            value={formData.description_en}
+            onChange={(e) => setFormData((prev) => ({ ...prev, description_en: e.target.value }))}
+            rows={2}
           />
         </div>
       </div>
-
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="price">מחיר (₪)</Label>
           <Input
@@ -328,62 +420,88 @@ const StoreProductForm = ({
             type="number"
             min="0"
             value={formData.price}
-            onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+            onChange={(e) => setFormData((prev) => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
             required
           />
         </div>
         <div>
           <Label htmlFor="category">קטגוריה</Label>
-          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+          <Select
+            value={formData.category}
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
+          >
             <SelectTrigger>
               <SelectValue placeholder="בחר קטגוריה" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
+              {categories
+                .filter((category) => !!category)
+                .map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label htmlFor="status">סטטוס</Label>
-          <Select value={formData.status} onValueChange={(value: 'available' | 'out-of-stock') => setFormData(prev => ({ ...prev, status: value }))}>
+          <Label htmlFor="is_exclusive">סטטוס</Label>
+          <Select
+            value={formData.is_exclusive ? 'yes' : 'no'}
+            onValueChange={(val) => setFormData((prev) => ({ ...prev, is_exclusive: val === 'yes' }))}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="available">זמין</SelectItem>
-              <SelectItem value="out-of-stock">אזל מהמלאי</SelectItem>
+              <SelectItem value="no">זמין</SelectItem>
+              <SelectItem value="yes">בלעדי/לא זמין</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
-      <div>
-        <Label htmlFor="link">קישור לקנייה</Label>
-        <Input
-          id="link"
-          type="url"
-          value={formData.link}
-          onChange={(e) => setFormData(prev => ({ ...prev, link: e.target.value }))}
-          required
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="link">קישור לקנייה</Label>
+          <Input
+            id="link"
+            type="url"
+            value={formData.link}
+            onChange={(e) => setFormData((prev) => ({ ...prev, link: e.target.value }))}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="image_url">קישור לתמונה</Label>
+          <Input
+            id="image_url"
+            type="url"
+            value={formData.image_url}
+            onChange={(e) => setFormData((prev) => ({ ...prev, image_url: e.target.value }))}
+          />
+        </div>
       </div>
-
-      <div>
-        <Label htmlFor="imageUrl">קישור לתמונה (אופציונלי)</Label>
-        <Input
-          id="imageUrl"
-          type="url"
-          value={formData.imageUrl}
-          onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-        />
+      {/* תגים מיוחדים */}
+      <div className="flex flex-wrap gap-3 mt-4">
+        <Label className="flex items-center gap-2 cursor-pointer">
+          <Input type="checkbox" checked={formData.is_new} onChange={e => setFormData(prev => ({ ...prev, is_new: e.target.checked }))} />
+          <Star className="w-4 h-4 text-green-600" /> חדש
+        </Label>
+        <Label className="flex items-center gap-2 cursor-pointer">
+          <Input type="checkbox" checked={formData.is_popular} onChange={e => setFormData(prev => ({ ...prev, is_popular: e.target.checked }))} />
+          <TrendingUp className="w-4 h-4 text-pink-500" /> פופולרי
+        </Label>
+        <Label className="flex items-center gap-2 cursor-pointer">
+          <Input type="checkbox" checked={formData.is_subsidized} onChange={e => setFormData(prev => ({ ...prev, is_subsidized: e.target.checked }))} />
+          <Gift className="w-4 h-4 text-purple-500" /> מסובסד
+        </Label>
+        <Label className="flex items-center gap-2 cursor-pointer">
+          <Input type="checkbox" checked={formData.is_monetizable} onChange={e => setFormData(prev => ({ ...prev, is_monetizable: e.target.checked }))} />
+          <DollarSign className="w-4 h-4 text-yellow-600" /> אפיק רווח
+        </Label>
       </div>
-
-      <Button type="submit" className="w-full">
-        {product ? 'עדכן מוצר' : 'הוסף מוצר'}
+      <Button type="submit" className="w-full mt-6 text-lg py-2 rounded-xl bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-800 text-white font-bold shadow" disabled={isLoading}>
+        {isLoading ? 'שומר...' : product ? 'עדכן מוצר' : 'הוסף מוצר'}
       </Button>
     </form>
   );

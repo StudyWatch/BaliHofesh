@@ -9,7 +9,7 @@ import { Settings, Bell, Smartphone, Globe } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/App';
+import { useAuth } from '@/contexts/AuthProvider';
 
 interface NotificationPreferencesProps {
   className?: string;

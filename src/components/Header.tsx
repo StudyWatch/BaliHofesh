@@ -1,8 +1,7 @@
-// Header.tsx
 import React, { useState, useEffect, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/App';
+import { useAuth } from '@/contexts/AuthProvider';
 import { useUserProfile } from '@/hooks/useProfile';
 import { useSystemNotifications } from '@/hooks/useSystemNotifications';
 import { Button } from '@/components/ui/button';
@@ -23,13 +22,14 @@ import {
   Menu,
   X,
   Home,
-  BookOpen,
   GraduationCap,
   Lightbulb,
   ShoppingCart,
   ChevronDown,
   Moon,
   Sun,
+  Mail,
+  HelpCircle
 } from 'lucide-react';
 import AuthDialog from '@/components/auth/AuthDialog';
 import MobileMenu from './MobileMenu';
@@ -39,11 +39,10 @@ const NotificationSystem = React.lazy(() => import('@/components/notifications/N
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { dir, language, setLanguage } = useLanguage();
-  const { user, loading, signOut } = useAuth();
-  const { data: notifications = [] } = useSystemNotifications();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const { data: notifications = [], isLoading: notificationsLoading } = useSystemNotifications();
   const unreadCount = notifications.filter(n => !n.is_read).length;
-  const { data: profile } = useUserProfile();
-
   const isTutor = profile?.role === 'tutor' || profile?.role === 'admin' || profile?.is_tutor;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,13 +50,7 @@ const Header: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
+  // Dark Mode
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       if (localStorage.getItem('darkMode')) {
@@ -78,22 +71,18 @@ const Header: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/courses?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
-  };
+  // Responsive: detect mobile
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
-  const menuItems = [
-    { href: '/', label: dir === 'rtl' ? 'דף הבית' : 'Home', icon: Home },
-    { href: '/courses', label: dir === 'rtl' ? 'קורסים' : 'Courses', icon: BookOpen },
-    { href: '/tutors', label: dir === 'rtl' ? 'מורים פרטיים' : 'Tutors', icon: GraduationCap },
-    { href: '/tips', label: dir === 'rtl' ? 'טיפים' : 'Tips', icon: Lightbulb },
-    { href: '/store', label: dir === 'rtl' ? 'החנות' : 'Store', icon: ShoppingCart },
-  ];
-
-  if (loading) {
+  // אלמנט טעינה אם authLoading (או במידת הצורך, profileLoading)
+  if (authLoading /* || profileLoading */) {
     return (
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="container mx-auto px-4">
@@ -112,23 +101,37 @@ const Header: React.FC = () => {
     );
   }
 
+  // תפריט עליון
+  const menuItems = [
+    { href: '/', label: dir === 'rtl' ? 'דף הבית' : 'Home', icon: Home },
+    { href: '/tutors', label: dir === 'rtl' ? 'מורים פרטיים' : 'Tutors', icon: GraduationCap },
+    { href: '/tips', label: dir === 'rtl' ? 'טיפים' : 'Tips', icon: Lightbulb },
+    { href: '/store', label: dir === 'rtl' ? 'החנות' : 'Store', icon: ShoppingCart },
+  ];
+  if (isMobile) {
+    menuItems.push({
+      href: '/feedback',
+      label: dir === 'rtl' ? 'פנייה לצוות האתר' : 'Contact / Feedback',
+      icon: Mail,
+      feedback: true
+    });
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/courses?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
-    <header className="bg-white dark:bg-[#181f32] shadow-sm border-b border-gray-200 dark:border-[#232949] sticky top-0 z-40 transition-colors">
+    <header className="Header bg-white dark:bg-[#181f32] shadow-sm border-b border-gray-200 dark:border-[#232949] sticky top-0 z-40 transition-colors rounded-none dark:rounded-none">
       <div className="container mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between h-16">
           {/* לוגו-טקסט דינמי */}
           <Link to="/" className="flex items-center min-w-0 select-none group" tabIndex={0}>
             <span
-              className="
-                bali-logo-dynamic
-                px-4 py-2 rounded-2xl font-bold
-                text-base xs:text-lg md:text-2xl
-                tracking-tight text-white
-                shadow-xl border-2 border-white/40
-                transition-all duration-400
-                group-hover:scale-105 group-hover:shadow-2xl
-                cursor-pointer select-none
-              "
+              className="bali-logo-dynamic px-4 py-2 rounded-2xl font-bold text-base xs:text-lg md:text-2xl tracking-tight text-white shadow-xl border-2 border-white/40 transition-all duration-400 group-hover:scale-105 group-hover:shadow-2xl cursor-pointer select-none"
               aria-label="באלי חופש - דף הבית"
             >
               באלי חופש
@@ -141,27 +144,19 @@ const Header: React.FC = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center space-x-6 space-x-reverse">
-            {menuItems.map((item) => (
-              <Link
-                key={item.href}
-                to={item.href}
-                className="
-                  flex items-center space-x-1 space-x-reverse
-                  text-gray-700 dark:text-gray-100
-                  hover:text-blue-700 dark:hover:text-indigo-300
-                  transition-colors duration-200 px-3 py-2 rounded-lg relative
-                  group
-                  focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
-                  hover:bg-blue-50 dark:hover:bg-[#222844]
-                  after:content-[''] after:absolute after:left-2 after:right-2 after:bottom-1 after:h-1 after:rounded-full after:opacity-0 group-hover:after:opacity-70 after:transition-all after:duration-300
-                  after:bg-gradient-to-r after:from-blue-300 after:to-purple-400
-                "
-                tabIndex={0}
-              >
-                <item.icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </Link>
-            ))}
+            {menuItems
+              .filter(item => !item.feedback)
+              .map((item) => (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className="flex items-center space-x-1 space-x-reverse text-gray-700 dark:text-gray-100 hover:text-blue-700 dark:hover:text-indigo-300 transition-colors duration-200 px-3 py-2 rounded-lg relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 hover:bg-blue-50 dark:hover:bg-[#222844] after:content-[''] after:absolute after:left-2 after:right-2 after:bottom-1 after:h-1 after:rounded-full after:opacity-0 group-hover:after:opacity-70 after:transition-all after:duration-300 after:bg-gradient-to-r after:from-blue-300 after:to-purple-400"
+                  tabIndex={0}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
           </nav>
 
           {/* Search Bar */}
@@ -174,34 +169,35 @@ const Header: React.FC = () => {
                   placeholder={dir === 'rtl' ? "חיפוש קורסים..." : "Search courses..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="
-                    pl-10 bg-white/60 border-2 border-gray-200 dark:bg-[#222844]/90 dark:border-[#232949]
-                    focus:bg-white dark:focus:bg-[#232949] dark:text-gray-100
-                    focus:border-blue-400 focus:ring-2 focus:ring-blue-300
-                    transition-all duration-200
-                    rounded-xl shadow
-                    hover:shadow-lg
-                    outline-none
-                  "
+                  className="pl-10 bg-white/60 border-2 border-gray-200 dark:bg-[#222844]/90 dark:border-[#232949] focus:bg-white dark:focus:bg-[#232949] dark:text-gray-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 transition-all duration-200 rounded-xl shadow hover:shadow-lg outline-none"
                   style={{
                     boxShadow: '0 1px 5px 0 rgba(90,110,250,0.07)',
                   }}
                 />
-                {/* קו תחתון אנימטיבי ב־focus */}
-                <span className="
-                  absolute right-0 left-0 bottom-0 h-0.5
-                  bg-gradient-to-r from-blue-400 to-purple-400
-                  rounded-full pointer-events-none
-                  scale-x-0 group-focus-within:scale-x-100
-                  transition-transform duration-300
-                " />
               </div>
             </form>
           </div>
 
           {/* Right Section */}
           <div className="flex items-center space-x-1 xs:space-x-2 sm:space-x-4 space-x-reverse">
-            {/* --- מצב לילה/יום --- */}
+
+            {/* כפתור פנייה לצוות – דסקטופ בלבד */}
+            <div className="hidden lg:flex items-center gap-2 ml-2">
+              <Link
+                to="/feedback"
+                className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-blue-50 dark:hover:bg-[#232949] transition group relative outline-none focus:ring-2 focus:ring-blue-300"
+                style={{ minWidth: 36, minHeight: 36 }}
+                aria-label="פנייה לצוות האתר"
+                tabIndex={0}
+              >
+                <HelpCircle className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition" />
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 group-focus:opacity-100 absolute left-12 right-auto bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-200 rounded-xl shadow-lg py-1 px-3 text-xs font-semibold transition-all duration-200 z-50 whitespace-nowrap border border-blue-100 dark:border-blue-700" style={{ top: '50%', transform: 'translateY(-50%)' }}>
+                  פנייה לצוות האתר
+                </span>
+              </Link>
+            </div>
+
+            {/* מצב לילה/יום */}
             <button
               className={`
                 toggle-darkmode-btn mr-1 flex items-center justify-center rounded-full
@@ -233,13 +229,7 @@ const Header: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
-              className="
-                hidden sm:flex
-                hover:bg-blue-50 dark:hover:bg-[#21294e]
-                hover:text-blue-700 dark:hover:text-indigo-300
-                rounded-lg px-2
-                transition
-              "
+              className="hidden sm:flex hover:bg-blue-50 dark:hover:bg-[#21294e] hover:text-blue-700 dark:hover:text-indigo-300 rounded-lg px-2 transition"
             >
               {dir === 'rtl' ? 'EN' : 'עב'}
             </Button>
@@ -248,28 +238,14 @@ const Header: React.FC = () => {
             {user && user.email_confirmed_at && (
               <button
                 type="button"
-                className={`
-                  relative rounded-full transition shadow-sm
-                  hover:bg-blue-50 dark:hover:bg-[#21294e]
-                  focus:outline-none focus:ring-2 focus:ring-blue-400
-                  w-10 h-10 flex items-center justify-center
-                  hover:scale-105
-                `}
+                className="relative rounded-full transition shadow-sm hover:bg-blue-50 dark:hover:bg-[#21294e] focus:outline-none focus:ring-2 focus:ring-blue-400 w-10 h-10 flex items-center justify-center hover:scale-105"
                 aria-label={dir === 'rtl' ? 'התראות' : 'Notifications'}
                 tabIndex={0}
                 onClick={() => setShowNotifications(true)}
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span
-                    className={`
-                      absolute -top-1.5 -right-1.5 min-w-[1.4rem] h-5 px-1
-                      bg-red-500 text-white text-xs font-bold flex items-center justify-center rounded-full shadow
-                      border-2 border-white animate-bounce
-                    `}
-                    style={{ zIndex: 2 }}
-                    aria-label={`${unreadCount} התראות חדשות`}
-                  >
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[1.4rem] h-5 px-1 bg-red-500 text-white text-xs font-bold flex items-center justify-center rounded-full shadow border-2 border-white animate-bounce" style={{ zIndex: 2 }} aria-label={`${unreadCount} התראות חדשות`}>
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
@@ -283,13 +259,7 @@ const Header: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="
-                      flex items-center gap-2 px-2
-                      rounded-lg
-                      hover:bg-blue-50 dark:hover:bg-[#21294e]
-                      hover:text-blue-700 dark:hover:text-indigo-300
-                      transition
-                    "
+                    className="flex items-center gap-2 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-[#21294e] hover:text-blue-700 dark:hover:text-indigo-300 transition"
                     aria-label="פרופיל משתמש"
                   >
                     <User className="w-5 h-5" />
@@ -369,40 +339,40 @@ const Header: React.FC = () => {
         )}
       </Suspense>
 
-      {/* CSS ללוגו דינמי ואנימציה */}
+      {/* CSS דינמי */}
       <style>{`
         @keyframes gradient-move {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+           0% { background-position: 0% 50%; }
+           50% { background-position: 100% 50%; }
+           100% { background-position: 0% 50%; }
         }
         .bali-logo-dynamic {
-          background: linear-gradient(90deg, #7c3aed 0%, #4f46e5 30%, #2563eb 60%, #d946ef 100%);
-          background-size: 250% 250%;
-          background-position: 0% 50%;
-          animation: gradient-move 8s ease-in-out infinite;
-          box-shadow: 0 4px 24px 0 rgba(76,34,221,0.11), 0 1.5px 8px 0 rgba(36,0,103,0.10);
-          letter-spacing: 1.5px;
-          min-width: 120px;
-          min-height: 40px;
-          user-select: none;
+           background: linear-gradient(90deg, #7c3aed 0%, #4f46e5 30%, #2563eb 60%, #d946ef 100%);
+           background-size: 250% 250%;
+           background-position: 0% 50%;
+           animation: gradient-move 8s ease-in-out infinite;
+           box-shadow: 0 4px 24px 0 rgba(76,34,221,0.11), 0 1.5px 8px 0 rgba(36,0,103,0.10);
+           letter-spacing: 1.5px;
+           min-width: 120px;
+           min-height: 40px;
+           user-select: none;
         }
         .skeleton-loader {
-          background: linear-gradient(90deg, #f3f3f3 25%, #ecebeb 50%, #f3f3f3 75%);
-          background-size: 400% 100%;
-          animation: skeleton 2s infinite linear;
+           background: linear-gradient(90deg, #f3f3f3 25%, #ecebeb 50%, #f3f3f3 75%);
+           background-size: 400% 100%;
+           animation: skeleton 2s infinite linear;
         }
         @keyframes skeleton {
-          0% { background-position: 100% 0; }
-          100% { background-position: 0 0; }
+           0% { background-position: 100% 0; }
+           100% { background-position: 0 0; }
         }
         @media (max-width: 640px) {
-          .bali-logo-dynamic {
-            padding: 6px 12px;
-            font-size: 1.07rem !important;
-            min-width: 100px;
-            min-height: 36px;
-          }
+           .bali-logo-dynamic {
+             padding: 6px 12px;
+             font-size: 1.07rem !important;
+             min-width: 100px;
+             min-height: 36px;
+           }
         }
       `}</style>
     </header>

@@ -20,9 +20,10 @@ import { BookmarkPlus, CheckCircle, Trash2 } from 'lucide-react';
 interface SaveToAccountButtonProps {
   courseId: string;
   courseName: string;
+  compact?: boolean; // האם במצב קטן/פינתי
 }
 
-const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps) => {
+const SaveToAccountButton = ({ courseId, courseName, compact }: SaveToAccountButtonProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -145,6 +146,67 @@ const SaveToAccountButton = ({ courseId, courseName }: SaveToAccountButtonProps)
     }
   };
 
+  // --------- קומפקט: אייקון קטן בלבד -----------------
+  if (compact) {
+    return (
+      <div className="absolute left-3 bottom-3 z-30">
+        {savedCourse ? (
+          <span title="הקורס במועדפים">
+            <CheckCircle className="w-6 h-6 text-green-600 bg-white/90 border-2 border-white rounded-full shadow transition" />
+          </span>
+        ) : (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); }}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/90 border-2 border-gray-200 shadow text-blue-600 hover:bg-blue-50 transition focus:outline-none"
+                title="הוסף קורס למועדפים"
+              >
+                <BookmarkPlus className="w-5 h-5" />
+              </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle>הוספת קורס למועדפים</DialogTitle>
+                <DialogDescription>
+                  באיזה סמסטר תרצה לשמור את הקורס "{courseName}"?
+                </DialogDescription>
+              </DialogHeader>
+              <div className="my-2">
+                <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+                  <SelectTrigger className="w-full h-12 font-semibold rounded-lg bg-white border px-3">
+                    <SelectValue placeholder="בחר סמסטר..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map((s) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name} {s.is_current && <span className="text-green-600 font-bold">(נוכחי)</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  onClick={handleSave}
+                  disabled={!selectedSemester || isLoading}
+                  className="flex-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
+                >
+                  {isLoading ? "שומר..." : "שמור"}
+                </Button>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+                  ביטול
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    );
+  }
+
+  // ----------- רגיל (קיים) -----------
   if (savedCourse) {
     return (
       <div className="flex flex-col gap-3" dir="rtl">

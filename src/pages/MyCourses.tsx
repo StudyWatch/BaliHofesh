@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/App';
+import { useAuth } from '@/contexts/AuthProvider';
 import { useFavoriteCourses } from '@/hooks/useFavorites';
 import { usePersonalizedExamCalendar } from '@/hooks/usePersonalizedExamCalendar';
 import { useUserActiveSessions } from '@/hooks/useProfile';

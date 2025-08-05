@@ -11,7 +11,16 @@ import { toast } from 'sonner';
 import PasswordResetDialog from './PasswordResetDialog';
 import { createWelcomeNotification } from '@/components/notifications/createWelcomeNotification';
 import { supabase } from '@/integrations/supabase/client';
-import { Checkbox } from '@/components/ui/checkbox'; // ודא שקיים!
+import { Checkbox } from '@/components/ui/checkbox';
+
+// --- אייקונים SVG מקוריים ---
+const GOOGLE_ICON = (
+  <svg width="22" height="22" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.6 32.2 30.1 35 24 35c-6.1 0-11.3-5-11.3-11S17.9 13 24 13c2.5 0 4.9.8 6.8 2.3l6.4-6.4C33.2 5.5 28.8 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c9.8 0 18.5-7 19.6-16.2.1-.8.2-1.5.2-2.3 0-1.3-.1-2.5-.3-3.5z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.3 16.5 19.2 13 24 13c2.5 0 4.9.8 6.8 2.3l6.4-6.4C33.2 5.5 28.8 4 24 4c-7.2 0-13.5 4.2-16.7 10.7z"/><path fill="#FBBC05" d="M24 44c5.9 0 10.9-1.9 14.6-5.2l-7-5.7C29.7 34.4 27 35 24 35c-6.1 0-11.3-5-11.3-11H6.3C8.7 37.2 15.6 44 24 44z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8C35.4 32.2 30.1 35 24 35c-6.1 0-11.3-5-11.3-11S17.9 13 24 13c2.5 0 4.9.8 6.8 2.3l6.4-6.4C33.2 5.5 28.8 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c9.8 0 18.5-7 19.6-16.2.1-.8.2-1.5.2-2.3 0-1.3-.1-2.5-.3-3.5z"/></g></svg>
+);
+
+const FACEBOOK_ICON = (
+  <svg width="22" height="22" viewBox="0 0 48 48"><g><circle fill="#3b5998" cx="24" cy="24" r="20"/><path fill="#fff" d="M26.5 37V25.6h3.8l.5-4.1h-4.3v-2.6c0-1.2.3-1.9 2-1.9h2.1V13c-.3 0-1.5-.1-2.9-.1-2.9 0-4.8 1.8-4.8 5.1v2.8h-3.2v4.1h3.2V37h4.6z"/></g></svg>
+);
 
 // ---- מערך אווטארים מוכנים (DiceBear וכדומה) ----
 const AVATAR_CHOICES = [
@@ -43,13 +52,11 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [showPasswordReset, setShowPasswordReset] = useState(false);
 
-  // אווטארים
   const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATAR_CHOICES[0].value);
   const [customAvatarFile, setCustomAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>(AVATAR_CHOICES[0].img);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // טפסים
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [signupData, setSignupData] = useState({
     email: '',
@@ -58,7 +65,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     phone: '',
     confirmPassword: ''
   });
-  const [agreedToTerms, setAgreedToTerms] = useState(false); // תנאי שימוש
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -101,7 +108,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     }
   }, [customAvatarFile, selectedAvatar]);
 
-  // עמודת ROLE לפרופיל
   const checkUserRoleAndRedirect = async (userId: string) => {
     try {
       const { data: profile } = await supabase
@@ -121,7 +127,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  // העלאת תמונת פרופיל ל־Storage אם נבחרה מהמחשב
   const uploadAvatar = async (userId: string): Promise<string | null> => {
     if (!customAvatarFile) return selectedAvatar || null;
     const fileExt = customAvatarFile.name.split('.').pop();
@@ -137,7 +142,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     return data?.publicUrl || null;
   };
 
-  // התחברות
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -161,18 +165,15 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
         }
         return;
       }
-      // שאר הטיפול קורה באירוע למעלה
     } finally {
       setIsLoading(false);
     }
   };
 
-  // הרשמה
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // בדיקות סיסמה
       if (signupData.password !== signupData.confirmPassword) {
         toast.error('הסיסמאות לא תואמות');
         setIsLoading(false);
@@ -219,7 +220,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
         return;
       }
 
-      // העלאת אווטאר אם נבחר
       let avatarUrl: string | null = null;
       if (customAvatarFile || selectedAvatar) {
         avatarUrl = await uploadAvatar(data.user.id);
@@ -255,15 +255,31 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  // קומפוננטת בחירת אווטאר
+  // התחברות עם גוגל/פייסבוק (כולל REDIRECT נכון לסביבה)
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    setIsLoading(true);
+    const redirectTo =
+      process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000/auth/callback'
+        : 'https://balihofesh.vercel.app/auth/callback';
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+      }
+    });
+    if (error) {
+      toast.error(`שגיאה בהתחברות עם ${provider === 'google' ? 'Google' : 'Facebook'}: ` + error.message);
+      setIsLoading(false);
+    }
+  };
+
   const AvatarPicker = () => (
     <div className="space-y-1 mb-2">
       <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
         תמונת פרופיל (לא חובה)
-        <span
-          className="ml-1 text-gray-400 cursor-pointer"
-          title="תמונה זו תוצג בפרופיל ובחיפוש שותפי למידה. אפשר להעלות/לבחור/להשאיר ריק, ותמיד אפשר לשנות בהמשך."
-        >
+        <span className="ml-1 text-gray-400 cursor-pointer" title="תמונה זו תוצג בפרופיל ובחיפוש שותפי למידה. אפשר להעלות/לבחור/להשאיר ריק, ותמיד אפשר לשנות בהמשך.">
           <Info className="inline w-3 h-3" />
         </span>
       </label>
@@ -319,7 +335,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     </div>
   );
 
-  // מסך משתמש מחובר
   if (user && user.email_confirmed_at) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -352,7 +367,6 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
     );
   }
 
-  // מסך התחברות/הרשמה
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full max-w-sm sm:max-w-md mx-auto bg-white border-2 shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto" dir={dir}>
@@ -365,12 +379,34 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
             התחבר או הירשם כדי לגשת למערכת
           </DialogDescription>
         </DialogHeader>
+
+        {/* --- SOCIAL BUTTONS --- */}
+        <div className="w-full flex flex-col gap-2 mb-2">
+          <Button
+            type="button"
+            onClick={() => handleSocialLogin('google')}
+            className="w-full flex items-center gap-3 justify-center bg-white border border-gray-200 shadow hover:bg-gray-50 text-gray-800 font-semibold"
+            disabled={isLoading}
+          >
+            {GOOGLE_ICON}
+            התחבר עם Google
+          </Button>
+          <Button
+            type="button"
+            onClick={() => handleSocialLogin('facebook')}
+            className="w-full flex items-center gap-3 justify-center bg-white border border-gray-200 shadow hover:bg-gray-50 text-gray-800 font-semibold"
+            disabled={isLoading}
+          >
+            {FACEBOOK_ICON}
+            התחבר עם Facebook
+          </Button>
+        </div>
+
         <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'login' | 'signup')} className="w-full mt-4">
           <TabsList className="grid w-full grid-cols-2 bg-gray-100 h-10">
             <TabsTrigger value="login" className="text-gray-700 text-sm">התחברות</TabsTrigger>
             <TabsTrigger value="signup" className="text-gray-700 text-sm">הרשמה</TabsTrigger>
           </TabsList>
-          {/* --- טופס התחברות --- */}
           <TabsContent value="login" className="space-y-4 mt-6">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
@@ -493,7 +529,7 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose }) => {
                   className="w-full border-gray-300 focus:border-purple-500 text-sm h-10"
                 />
               </div>
-              {/* --- טלפון אופציונלי עם הסבר --- */}
+              {/* --- טלפון אופציונלי --- */}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                   טלפון (אופציונלי)

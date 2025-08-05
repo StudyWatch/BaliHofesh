@@ -1,20 +1,24 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { Star, Send, Loader2, Users, Clock, Heart, Plus, CheckCircle, Pencil, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Star, Send, Loader2, Users, Clock, Heart, Plus, CheckCircle } from "lucide-react";
 import { useSubmitLecturerReview, useAddLecturer, useUserLecturerReview } from "@/hooks/useLecturerRatings";
-import { useAuth } from "@/App";
+import { useAuth } from '@/contexts/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
 
 const RATING_PARAMS = [
   { key: "teaching_quality", label: "איכות הוראה והעברת חומר", icon: Users, color: "text-blue-600" },
   { key: "lecturer_availability", label: "זמינות המרצה", icon: Clock, color: "text-green-600" },
-  { key: "personal_approach", label: "יחס אישי", icon: Heart, color: "text-purple-600" }
+  { key: "personal_approach", label: "יחס אישי", icon: Heart, color: "text-purple-600" },
 ];
 
 function getDescription(rating: number) {
@@ -23,7 +27,7 @@ function getDescription(rating: number) {
     2: "גרוע",
     3: "בסדר",
     4: "טוב",
-    5: "מעולה"
+    5: "מעולה",
   }[rating] || "");
 }
 
@@ -40,19 +44,17 @@ const LecturerReviewForm = ({
   courseId,
   onSuccess,
   editData,
-  isRTL = true
+  isRTL = true,
 }: LecturerReviewFormProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { dir } = useLanguage();
   const formRef = useRef<HTMLFormElement>(null);
 
-  // states
   const [selectedLecturer, setSelectedLecturer] = useState(editData?.lecturer_id || "");
   const [ratings, setRatings] = useState<Record<string, number>>({
     teaching_quality: editData?.teaching_quality || 0,
     lecturer_availability: editData?.lecturer_availability || 0,
-    personal_approach: editData?.personal_approach || 0
+    personal_approach: editData?.personal_approach || 0,
   });
   const [hoveredRatings, setHoveredRatings] = useState<Record<string, number>>({});
   const [comment, setComment] = useState(editData?.comment || "");
@@ -64,7 +66,6 @@ const LecturerReviewForm = ({
   const submitReviewMutation = useSubmitLecturerReview();
   const addLecturerMutation = useAddLecturer();
 
-  // עריכה קיימת
   const { data: myReview, refetch: refetchMyReview } = useUserLecturerReview(selectedLecturer, courseId);
 
   useEffect(() => {
@@ -72,78 +73,15 @@ const LecturerReviewForm = ({
       setRatings({
         teaching_quality: myReview.teaching_quality || 0,
         lecturer_availability: myReview.lecturer_availability || 0,
-        personal_approach: myReview.personal_approach || 0
+        personal_approach: myReview.personal_approach || 0,
       });
       setComment(myReview.comment || "");
     }
   }, [myReview, selectedLecturer]);
 
-  // הוספת מרצה חדש
-  const handleAddLecturer = async () => {
-    if (!newLecturerName.trim()) return;
-    try {
-      const result = await addLecturerMutation.mutateAsync({
-        name: newLecturerName.trim(),
-        course_id: courseId
-      });
-      if (result.existing) {
-        setSuggestedLecturers(result.existing);
-        toast({ title: "מרצים דומים נמצאו", description: "בחר מהרשימה, או המשך להוספה" });
-      } else {
-        toast({ title: "מרצה נוסף", description: "המרצה נוסף בהצלחה, אפשר לדרג" });
-        setSelectedLecturer(result.new.id);
-        setShowAddLecturer(false);
-        setNewLecturerName("");
-        setSuggestedLecturers([]);
-        setTimeout(() => {
-          if (formRef.current) {
-            formRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        }, 400);
-      }
-    } catch (error) {
-      toast({ title: "שגיאה", description: "שגיאה בהוספת המרצה", variant: "destructive" });
-    }
-  };
-
-  const allRatingsSet = Object.values(ratings).every((r) => r > 0);
-  const averageRating = allRatingsSet
-    ? Math.round((ratings.teaching_quality + ratings.lecturer_availability + ratings.personal_approach) / 3 * 10) / 10
-    : 0;
-
-  // שליחת דירוג
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      toast({ title: "שגיאה", description: "עליך להתחבר כדי להגיש דירוג", variant: "destructive" });
-      return;
-    }
-    if (!selectedLecturer || !allRatingsSet) {
-      toast({ title: "שגיאה", description: "אנא בחר מרצה ודרג בכל הפרמטרים", variant: "destructive" });
-      return;
-    }
-    try {
-      await submitReviewMutation.mutateAsync({
-        lecturer_id: selectedLecturer,
-        course_id: courseId,
-        teaching_quality: ratings.teaching_quality,
-        lecturer_availability: ratings.lecturer_availability,
-        personal_approach: ratings.personal_approach,
-        comment: comment.trim()
-      });
-      toast({ title: "הדירוג נשלח!", description: "הדירוג שלך נשמר בהצלחה" });
-      setStage(2);
-      onSuccess?.();
-      refetchMyReview?.();
-      setTimeout(() => setStage(0), 1800);
-    } catch {
-      toast({ title: "שגיאה", description: "שגיאה בשליחת הדירוג", variant: "destructive" });
-    }
-  };
-
-  // כוכבים RTL
+  // סטארים רספונסיביים במיוחד
   const renderStarRating = (paramKey: string, value: number, onRate: (r: number) => void) => (
-    <div className="flex flex-row-reverse gap-0.5 justify-center items-center">
+    <div className="flex flex-row-reverse gap-0.5 justify-center items-center select-none">
       {[5, 4, 3, 2, 1].map((star) => (
         <button
           key={star}
@@ -156,7 +94,7 @@ const LecturerReviewForm = ({
           aria-label={`דרג ${star} מתוך 5`}
         >
           <Star
-            className={`w-8 h-8 drop-shadow transition-colors ${
+            className={`w-8 h-8 xs:w-7 xs:h-7 sm:w-8 sm:h-8 drop-shadow transition-colors ${
               star <= (hoveredRatings[paramKey] || value)
                 ? "fill-yellow-400 text-yellow-400"
                 : "text-gray-300 hover:text-yellow-200"
@@ -167,13 +105,12 @@ const LecturerReviewForm = ({
     </div>
   );
 
-  // טופס הוספת מרצה חדש
   const renderAddLecturer = () => (
     <motion.div
       initial={{ opacity: 0, y: 25 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 25 }}
-      className="p-6 bg-white border rounded-xl shadow-lg mx-auto max-w-sm flex flex-col gap-3"
+      className="p-5 bg-white border rounded-xl shadow-lg mx-auto w-full max-w-xs flex flex-col gap-3"
       dir="rtl"
     >
       <div className="font-bold text-lg text-blue-900 flex items-center gap-2">
@@ -210,7 +147,32 @@ const LecturerReviewForm = ({
       <div className="flex gap-2 mt-4">
         <Button
           className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold"
-          onClick={handleAddLecturer}
+          onClick={async () => {
+            if (!newLecturerName.trim()) return;
+            try {
+              const result = await addLecturerMutation.mutateAsync({
+                name: newLecturerName.trim(),
+                course_id: courseId,
+              });
+              if (result.existing) {
+                setSuggestedLecturers(result.existing);
+                toast({ title: "מרצים דומים נמצאו", description: "בחר מהרשימה, או המשך להוספה" });
+              } else {
+                toast({ title: "מרצה נוסף", description: "המרצה נוסף בהצלחה, אפשר לדרג" });
+                setSelectedLecturer(result.new.id);
+                setShowAddLecturer(false);
+                setNewLecturerName("");
+                setSuggestedLecturers([]);
+                setTimeout(() => {
+                  if (formRef.current) {
+                    formRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }
+                }, 400);
+              }
+            } catch (error) {
+              toast({ title: "שגיאה", description: "שגיאה בהוספת המרצה", variant: "destructive" });
+            }
+          }}
           disabled={!newLecturerName.trim() || addLecturerMutation.isPending}
         >
           {addLecturerMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
@@ -227,9 +189,50 @@ const LecturerReviewForm = ({
     </motion.div>
   );
 
-  // עוטף את כל הטופס במיכל נגלל ומתחתיו כפתור בולט - גם אם הגובה קטן
+  const allRatingsSet = Object.values(ratings).every((r) => r > 0);
+  const averageRating = allRatingsSet
+    ? Math.round((ratings.teaching_quality + ratings.lecturer_availability + ratings.personal_approach) / 3 * 10) / 10
+    : 0;
+
+  // --- Submit ---
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      toast({ title: "שגיאה", description: "עליך להתחבר כדי להגיש דירוג", variant: "destructive" });
+      return;
+    }
+    if (!selectedLecturer || !allRatingsSet) {
+      toast({ title: "שגיאה", description: "אנא בחר מרצה ודרג בכל הפרמטרים", variant: "destructive" });
+      return;
+    }
+    try {
+      await submitReviewMutation.mutateAsync({
+        lecturer_id: selectedLecturer,
+        course_id: courseId,
+        teaching_quality: ratings.teaching_quality,
+        lecturer_availability: ratings.lecturer_availability,
+        personal_approach: ratings.personal_approach,
+        comment: comment.trim(),
+      });
+      toast({ title: "הדירוג נשלח!", description: "הדירוג שלך נשמר בהצלחה" });
+      setStage(2);
+      onSuccess?.();
+      refetchMyReview?.();
+      setTimeout(() => setStage(0), 1800);
+    } catch {
+      toast({ title: "שגיאה", description: "שגיאה בשליחת הדירוג", variant: "destructive" });
+    }
+  };
+
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center" dir="rtl">
+    <div
+      className="
+        relative w-full min-h-screen flex flex-col items-center justify-center py-2
+        bg-gradient-to-br from-blue-50 via-purple-50 to-white
+        sm:rounded-xl
+      "
+      dir="rtl"
+    >
       <AnimatePresence mode="wait">
         {stage === 2 ? (
           <motion.div
@@ -247,23 +250,32 @@ const LecturerReviewForm = ({
         ) : (
           <motion.div
             key="form"
-            ref={formRef}
             initial={{ opacity: 0, y: 35 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 35 }}
             transition={{ type: "spring", bounce: 0.18 }}
-            className="w-full max-w-md bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl shadow-xl mx-auto"
+            className={`
+              w-full max-w-lg md:max-w-xl
+              bg-white/95 border border-blue-200
+              rounded-3xl shadow-xl mx-auto
+              px-0 sm:px-2
+            `}
           >
             <form
-              className="flex flex-col gap-5 max-h-[66vh] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-200 px-6 py-7"
+              ref={formRef}
+              className={`
+                flex flex-col gap-3 xs:gap-2 sm:gap-6
+                max-h-[78vh] overflow-y-auto px-3 sm:px-8 py-4 sm:py-7
+                text-base sm:text-lg
+              `}
               onSubmit={handleSubmit}
               dir="rtl"
               tabIndex={0}
-              style={{ minHeight: 320 }}
+              style={{ minHeight: 300 }}
             >
               {/* בחירת מרצה */}
               <div className="flex flex-col gap-1">
-                <label className="font-semibold text-blue-900 text-lg mb-2">
+                <label className="font-semibold text-blue-900 text-base sm:text-lg mb-2">
                   בחר מרצה או
                   <Button
                     size="sm"
@@ -281,7 +293,7 @@ const LecturerReviewForm = ({
                   onValueChange={val => setSelectedLecturer(val)}
                   disabled={addLecturerMutation.isPending}
                 >
-                  <SelectTrigger className="h-12 text-base bg-white rounded-lg shadow">
+                  <SelectTrigger className="h-11 text-base bg-white rounded-lg shadow">
                     <SelectValue placeholder="בחר מרצה מהרשימה..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -293,17 +305,20 @@ const LecturerReviewForm = ({
                   </SelectContent>
                 </Select>
               </div>
-              {/* דירוג לכל פרמטר */}
-              <div className="space-y-5">
+              {/* דירוגים */}
+              <div className="flex flex-col gap-2">
                 {RATING_PARAMS.map(param => {
                   const IconComponent = param.icon;
                   return (
                     <div
                       key={param.key}
-                      className="bg-white rounded-xl p-5 flex flex-col items-center gap-2 shadow border"
+                      className={`
+                        bg-gray-50 rounded-xl p-3 flex flex-col items-center gap-2 shadow border w-full
+                        sm:flex-row sm:justify-between sm:gap-6
+                      `}
                     >
-                      <div className="flex items-center gap-2">
-                        <IconComponent className={`w-6 h-6 ${param.color}`} />
+                      <div className="flex items-center gap-2 mb-2 sm:mb-0">
+                        <IconComponent className={`w-5 h-5 ${param.color}`} />
                         <span className="font-semibold text-base">{param.label}</span>
                       </div>
                       {renderStarRating(param.key, ratings[param.key], r => setRatings(s => ({ ...s, [param.key]: r })))}
@@ -321,11 +336,11 @@ const LecturerReviewForm = ({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0 }}
-                  className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4 text-center mb-2"
+                  className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-2 text-center mb-2"
                 >
                   <div className="flex items-center justify-center gap-2 mb-1">
-                    <Star className="w-6 h-6 fill-yellow-400 text-yellow-400" />
-                    <span className="text-xl font-bold text-gray-800">{averageRating.toFixed(1)}</span>
+                    <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                    <span className="text-lg font-bold text-gray-800">{averageRating.toFixed(1)}</span>
                   </div>
                   <div className="text-xs text-gray-500">ממוצע כללי</div>
                 </motion.div>
@@ -338,7 +353,7 @@ const LecturerReviewForm = ({
                   onChange={e => setComment(e.target.value)}
                   placeholder="איך המרצה מעביר את החומר? עזר לסטודנטים? מה אהבת/לא אהבת? כל דבר חשוב"
                   rows={3}
-                  className="resize-none text-base"
+                  className="resize-none text-base rounded-xl"
                   maxLength={400}
                 />
                 <div className="text-xs text-gray-400 text-left mt-1">
@@ -353,8 +368,14 @@ const LecturerReviewForm = ({
                   !selectedLecturer ||
                   !allRatingsSet
                 }
-                className="w-full h-14 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md hover:scale-[1.03] transition-all duration-300"
-                style={{ position: "sticky", bottom: 0, zIndex: 10 }}
+                className="
+                  w-full h-12 sm:h-14 text-base sm:text-lg font-bold rounded-full
+                  bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md
+                  fixed left-0 right-0 bottom-0 mx-auto
+                  z-20 sm:relative sm:z-auto
+                  sm:mb-0
+                "
+                style={{ maxWidth: 600 }}
               >
                 {submitReviewMutation.isPending ? (
                   <>

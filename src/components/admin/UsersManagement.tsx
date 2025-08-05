@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,66 +6,77 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
-import {
-  Users, Shield, Search, Trash2, Crown, Mail, Activity, CalendarDays, Info
-} from 'lucide-react';
+import { Users, Shield, Search, Trash2, Crown, Mail, Activity, CalendarDays, Info, GraduationCap, AlertCircle, UserX } from 'lucide-react';
 import { useRealUsers, useUpdateUserRole, useDeleteUser } from '@/hooks/useRealUsers';
 import { useToast } from '@/hooks/use-toast';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
 
+// ברירת מחדל לאווטאר
 const DEFAULT_AVATAR = '/default-avatar.png';
 
+const roleLabel = {
+  all: 'הכל',
+  admin: 'אדמינים',
+  tutor: 'מורים פרטיים',
+  user: 'סטודנטים',
+};
+
+// אפשרויות פילטור
+const roleOptions: Array<'all' | 'admin' | 'tutor' | 'user'> = ['all', 'admin', 'tutor', 'user'];
+
+// מציג תג תפקיד
 const getRoleBadge = (role: string) => {
-  return role === 'admin' ? (
-    <Badge className="bg-gradient-to-r from-purple-500 to-purple-700 text-white text-xs rounded-full shadow-md px-3">
-      <Crown className="w-3 h-3 ml-1 inline" />
-      אדמין
-    </Badge>
-  ) : (
-    <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 rounded-full shadow-sm px-3">
-      סטודנט
-    </Badge>
-  );
+  switch (role) {
+    case 'admin':
+      return (
+        <Badge className="bg-gradient-to-r from-purple-500 to-purple-700 text-white text-xs rounded-full shadow-md px-3">
+          <Crown className="w-3 h-3 ml-1 inline" />
+          אדמין
+        </Badge>
+      );
+    case 'tutor':
+      return (
+        <Badge className="bg-gradient-to-r from-emerald-400 to-green-600 text-white text-xs rounded-full shadow-md px-3">
+          <GraduationCap className="w-3 h-3 ml-1 inline" />
+          מורה פרטי
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 rounded-full shadow-sm px-3">
+          סטודנט
+        </Badge>
+      );
+  }
+};
+
+// זיהוי משתמש חריג
+const getUserWarnings = (user: any) => {
+  const warnings = [];
+  const lastLogin = user.updated_at ? new Date(user.updated_at) : null;
+  const daysSinceUpdate = lastLogin ? (Date.now() - lastLogin.getTime()) / (1000 * 60 * 60 * 24) : null;
+  if (daysSinceUpdate !== null && daysSinceUpdate > 90) warnings.push("לא מחובר 90 יום");
+  if (user.status === 'blocked') warnings.push("חסום");
+  if (!user.email || !user.name) warnings.push("חסר פרטים");
+  return warnings;
 };
 
 const UsersManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin' | 'tutor'>('all');
   const { toast } = useToast();
 
   const { data: users = [], isLoading } = useRealUsers();
   const updateRoleMutation = useUpdateUserRole();
   const deleteUserMutation = useDeleteUser();
 
-  const handlePromoteToAdmin = (userId: string) => {
+  // שינוי תפקיד דינמי
+  const handleChangeRole = (userId: string, role: 'user' | 'admin' | 'tutor') => {
     updateRoleMutation.mutate(
-      { userId, role: 'admin' },
+      { userId, role },
       {
-        onSuccess: () => toast({
-          title: "עודכן בהצלחה",
-          description: "המשתמש קודם לאדמין",
-        }),
-        onError: () => toast({
-          title: "שגיאה",
-          description: "שגיאה בקידום המשתמש",
-          variant: "destructive",
-        })
-      }
-    );
-  };
-
-  const handleDemoteFromAdmin = (userId: string) => {
-    updateRoleMutation.mutate(
-      { userId, role: 'user' },
-      {
-        onSuccess: () => toast({
-          title: "עודכן בהצלחה",
-          description: "הרשאות האדמין הוסרו",
-        }),
-        onError: () => toast({
-          title: "שגיאה",
-          description: "שגיאה בהורדת הרשאות",
-          variant: "destructive",
-        })
+        onSuccess: () => toast({ title: "עודכן בהצלחה", description: "התפקיד עודכן בהצלחה" }),
+        onError: () => toast({ title: "שגיאה", description: "שגיאה בעדכון תפקיד", variant: "destructive" })
       }
     );
   };
@@ -73,42 +84,45 @@ const UsersManagement = () => {
   const handleDeleteUser = (userId: string) => {
     if (window.confirm('האם אתה בטוח שברצונך למחוק את המשתמש? פעולה זו תמחק את כל הנתונים שלו.')) {
       deleteUserMutation.mutate(userId, {
-        onSuccess: () => toast({
-          title: "נמחק בהצלחה",
-          description: "המשתמש הוסר לצמיתות",
-        }),
-        onError: () => toast({
-          title: "שגיאה",
-          description: "שגיאה במחיקת המשתמש",
-          variant: "destructive",
-        })
+        onSuccess: () => toast({ title: "נמחק בהצלחה", description: "המשתמש הוסר לצמיתות" }),
+        onError: () => toast({ title: "שגיאה", description: "שגיאה במחיקת המשתמש", variant: "destructive" })
       });
     }
   };
 
-  const filteredUsers = users.filter((user: any) => {
+  // פילטור חכם (שם/מייל/תפקיד)
+  const filteredUsers = useMemo(() => users.filter((user: any) => {
     const search = searchTerm.trim().toLowerCase();
     const matches =
       (user.name || '').toLowerCase().includes(search) ||
       (user.email || '').toLowerCase().includes(search);
     const matchesRole = filterRole === 'all' || user.role === filterRole;
     return matches && matchesRole;
-  });
+  }), [users, searchTerm, filterRole]);
 
+  // סטטיסטיקות
   const adminCount = users.filter((u: any) => u.role === 'admin').length;
+  const tutorCount = users.filter((u: any) => u.role === 'tutor').length;
   const studentCount = users.filter((u: any) => u.role === 'user').length;
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <div className="text-lg text-blue-500 animate-pulse">טוען משתמשים...</div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // גרף: נרשמו 7 ימים אחרונים
+  const registrationsByDate = useMemo(() => {
+    const daysBack = 7;
+    const map: { [date: string]: number } = {};
+    for (let i = 0; i < daysBack; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('he-IL');
+      map[dateStr] = 0;
+    }
+    users.forEach((u: any) => {
+      const reg = new Date(u.created_at).toLocaleDateString('he-IL');
+      if (map[reg] !== undefined) map[reg]++;
+    });
+    return Object.entries(map).map(([date, count]) => ({ date, count })).reverse();
+  }, [users]);
 
-  // פרטי משתמש לדיאלוג בלבד (רק שם, מייל, אווטאר, הרשמה/עדכון)
+  // דיאלוג פרטי משתמש
   const UserDetails = ({ user }: { user: any }) => (
     <div className="space-y-4 text-center p-3">
       <img
@@ -117,10 +131,15 @@ const UsersManagement = () => {
         className="w-20 h-20 rounded-full border shadow mx-auto mb-2"
       />
       <h2 className="font-bold text-lg">{user.name || 'ללא שם'}</h2>
-      <div className="flex items-center justify-center gap-2">
-        {getRoleBadge(user.role)}
-      </div>
+      <div className="flex items-center justify-center gap-2">{getRoleBadge(user.role)}</div>
       <p className="text-xs text-gray-600">{user.email}</p>
+      <div className="flex flex-wrap justify-center gap-2 mt-2">
+        {getUserWarnings(user).map((w, i) => (
+          <Badge key={i} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+            <AlertCircle className="w-3 h-3" /> {w}
+          </Badge>
+        ))}
+      </div>
       <div className="flex justify-between text-xs text-gray-500 border-t pt-2 mt-2">
         <span>
           <CalendarDays className="inline w-3 h-3 mb-0.5" /> הרשמה: {new Date(user.created_at).toLocaleDateString('he-IL')}
@@ -132,8 +151,57 @@ const UsersManagement = () => {
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="text-lg text-blue-500 animate-pulse">טוען משתמשים...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="w-full max-w-6xl mx-auto shadow-xl bg-gradient-to-tr from-blue-50 via-white to-purple-50 rounded-3xl">
+    <Card className="w-full max-w-6xl mx-auto shadow-2xl bg-gradient-to-tr from-blue-50 via-white to-purple-50 rounded-3xl">
+      {/* Header סטטיסטיקות וגרף */}
+      <div className="mb-2 px-4 py-3 rounded-2xl bg-gradient-to-tr from-blue-200/60 to-purple-200/40 shadow flex flex-col md:flex-row gap-6 md:items-center md:justify-between">
+        <div className="flex gap-8 flex-wrap items-center">
+          <div className="flex flex-col items-center">
+            <span className="font-black text-xl text-blue-800">{users.length}</span>
+            <span className="text-xs text-gray-700">סה״כ משתמשים</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="font-black text-lg text-purple-800">{adminCount}</span>
+            <span className="text-xs text-gray-700">אדמינים</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="font-black text-lg text-green-700">{tutorCount}</span>
+            <span className="text-xs text-gray-700">מורים</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="font-black text-lg text-blue-700">{studentCount}</span>
+            <span className="text-xs text-gray-700">סטודנטים</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="font-black text-lg text-orange-700">
+              {registrationsByDate.reduce((acc, d) => acc + d.count, 0)}
+            </span>
+            <span className="text-xs text-gray-700">נרשמו 7 ימים</span>
+          </div>
+        </div>
+        <div className="w-full md:w-64 h-24">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={registrationsByDate}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" fontSize={10} />
+              <YAxis allowDecimals={false} width={30} fontSize={10} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#6366f1" radius={[8,8,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       <CardHeader className="space-y-4 border-b pb-2">
         <div className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 flex-wrap">
@@ -143,34 +211,22 @@ const UsersManagement = () => {
             </CardTitle>
             <div className="flex gap-2">
               <Badge variant="outline" className="text-xs">{adminCount} אדמינים</Badge>
+              <Badge variant="outline" className="text-xs">{tutorCount} מורים</Badge>
               <Badge variant="outline" className="text-xs">{studentCount} סטודנטים</Badge>
             </div>
           </div>
           <div className="flex gap-1 flex-wrap">
-            <Button 
-              variant={filterRole === 'all' ? 'default' : 'outline'}
-              onClick={() => setFilterRole('all')}
-              size="sm"
-              className="text-xs rounded-full"
-            >
-              הכל
-            </Button>
-            <Button 
-              variant={filterRole === 'admin' ? 'default' : 'outline'}
-              onClick={() => setFilterRole('admin')}
-              size="sm"
-              className="text-xs rounded-full"
-            >
-              אדמינים
-            </Button>
-            <Button 
-              variant={filterRole === 'user' ? 'default' : 'outline'}
-              onClick={() => setFilterRole('user')}
-              size="sm"
-              className="text-xs rounded-full"
-            >
-              סטודנטים
-            </Button>
+            {roleOptions.map(roleOpt =>
+              <Button
+                key={roleOpt}
+                variant={filterRole === roleOpt ? 'default' : 'outline'}
+                onClick={() => setFilterRole(roleOpt)}
+                size="sm"
+                className="text-xs rounded-full"
+              >
+                {roleLabel[roleOpt]}
+              </Button>
+            )}
           </div>
         </div>
         <div className="relative mt-4 max-w-xs">
@@ -205,8 +261,14 @@ const UsersManagement = () => {
                     <CalendarDays className="w-3 h-3" />
                     <span>{new Date(user.created_at).toLocaleDateString('he-IL')}</span>
                   </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {getUserWarnings(user).map((w, i) => (
+                      <Badge key={i} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                        <AlertCircle className="w-3 h-3" /> {w}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-                {/* פרטי משתמש */}
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button variant="outline" size="icon" className="rounded-full" title="פרטי משתמש">
@@ -231,23 +293,33 @@ const UsersManagement = () => {
                       <DrawerTitle>פעולות</DrawerTitle>
                     </DrawerHeader>
                     <div className="space-y-2 px-2">
-                      {user.role === 'user' ? (
+                      {user.role !== 'admin' && (
                         <Button
                           variant="outline"
                           className="w-full"
-                          onClick={() => handlePromoteToAdmin(user.id)}
+                          onClick={() => handleChangeRole(user.id, 'admin')}
                         >
                           <Shield className="w-4 h-4 ml-2" />
                           שדרג לאדמין
                         </Button>
-                      ) : (
+                      )}
+                      {user.role !== 'user' && (
                         <Button
                           variant="outline"
                           className="w-full"
-                          onClick={() => handleDemoteFromAdmin(user.id)}
-                          disabled={adminCount <= 1}
+                          onClick={() => handleChangeRole(user.id, 'user')}
                         >
-                          הסר הרשאות אדמין
+                          סטודנט רגיל
+                        </Button>
+                      )}
+                      {user.role !== 'tutor' && (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => handleChangeRole(user.id, 'tutor')}
+                        >
+                          <GraduationCap className="w-4 h-4 ml-2" />
+                          מורה פרטי
                         </Button>
                       )}
                       <Button
@@ -266,7 +338,7 @@ const UsersManagement = () => {
           ))}
         </div>
 
-        {/* Desktop: Advanced Table */}
+        {/* Desktop Table */}
         <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
@@ -277,6 +349,7 @@ const UsersManagement = () => {
                 <TableHead className="min-w-[60px] text-center">תפקיד</TableHead>
                 <TableHead className="min-w-[90px] text-center">הרשמה</TableHead>
                 <TableHead className="min-w-[100px] text-center">עדכון</TableHead>
+                <TableHead className="min-w-[140px] text-center">סטטוס</TableHead>
                 <TableHead className="min-w-[140px] text-center">פעולות</TableHead>
               </TableRow>
             </TableHeader>
@@ -301,9 +374,20 @@ const UsersManagement = () => {
                     <Activity className="w-3 h-3 inline text-gray-400 mr-1" />
                     {new Date(user.updated_at).toLocaleDateString('he-IL')}
                   </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {getUserWarnings(user).length === 0 && (
+                        <Badge className="bg-green-50 text-green-700 px-2 text-xs rounded-full">פעיל</Badge>
+                      )}
+                      {getUserWarnings(user).map((w, i) => (
+                        <Badge key={i} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                          <AlertCircle className="w-3 h-3" /> {w}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2 justify-center">
-                      {/* פרטי משתמש בדיאלוג */}
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="icon" className="rounded-full" title="פרטי משתמש">
@@ -317,30 +401,39 @@ const UsersManagement = () => {
                           <UserDetails user={user} />
                         </DialogContent>
                       </Dialog>
-                      {/* שינוי הרשאה */}
-                      {user.role === 'user' ? (
+                      {user.role !== 'admin' && (
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={() => handlePromoteToAdmin(user.id)}
+                          onClick={() => handleChangeRole(user.id, 'admin')}
                           className="rounded-full"
                           title="שדרג לאדמין"
                         >
                           <Shield className="w-4 h-4 text-purple-800" />
                         </Button>
-                      ) : (
+                      )}
+                      {user.role !== 'user' && (
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={() => handleDemoteFromAdmin(user.id)}
-                          disabled={adminCount <= 1}
+                          onClick={() => handleChangeRole(user.id, 'user')}
                           className="rounded-full"
-                          title="הסר הרשאת אדמין"
+                          title="הפוך לסטודנט"
                         >
-                          <Crown className="w-4 h-4 text-yellow-500" />
+                          <Users className="w-4 h-4 text-blue-800" />
                         </Button>
                       )}
-                      {/* מחיקה */}
+                      {user.role !== 'tutor' && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleChangeRole(user.id, 'tutor')}
+                          className="rounded-full"
+                          title="הפוך למורה"
+                        >
+                          <GraduationCap className="w-4 h-4 text-green-700" />
+                        </Button>
+                      )}
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="destructive" size="icon" className="rounded-full" title="מחק">
@@ -360,7 +453,7 @@ const UsersManagement = () => {
                               <DialogClose asChild>
                                 <Button variant="outline" size="sm">ביטול</Button>
                               </DialogClose>
-                              <Button 
+                              <Button
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => handleDeleteUser(user.id)}

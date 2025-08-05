@@ -1,97 +1,229 @@
-// src/contexts/AuthProvider.tsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
-  session: Session | null;
   user: User | null;
+  session: Session | null;
   isAdmin: boolean;
   loading: boolean;
+  initialLoad: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
   user: null,
+  session: null,
   isAdmin: false,
   loading: true,
+  initialLoad: false,
+  signOut: async () => {},
 });
 
-export const useAuth = () => useContext(AuthContext);
+// רשימת אדמינים מורשים (אימיילים)
+const adminEmails = [
+  'admin@example.com', // הוסף כאן את האימיילים של האדמינים
+];
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(false);
 
-  const fetchUserRole = async (userId: string) => {
+  // בדיקת הרשאת אדמין
+  const checkAdminStatus = async (currentUser: User): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
+      // בדיקה 1: האם האימייל ברשימת האדמינים
+      if (adminEmails.includes(currentUser.email || '')) {
+        console.log('🔐 Admin detected via email list:', currentUser.email);
+        return true;
+      }
+
+      // בדיקה 2: האם יש role=admin בפרופיל
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', userId)
+        .eq('id', currentUser.id)
         .single();
-      if (error) throw error;
-      return data?.role || null;
-    } catch (err) {
-      console.error('⚠️ שגיאה בעת שליפת תפקיד:', err);
-      return null;
+
+      if (error) {
+        console.warn('⚠️ Error fetching profile for admin check:', error);
+        // אם אין פרופיל - לא אדמין
+        return false;
+      }
+
+      const isAdminByRole = profile?.role === 'admin';
+      console.log('🔐 Admin check via profile role:', isAdminByRole, profile?.role);
+      
+      return isAdminByRole;
+    } catch (error) {
+      console.error('❌ Error checking admin status:', error);
+      return false;
     }
   };
 
-  const updateSession = async (newSession: Session | null) => {
-    if (!newSession) {
-      setSession(null);
-      setUser(null);
-      setIsAdmin(false);
-      setLoading(false);
-      return;
-    }
-
-    setSession(newSession);
-    setUser(newSession.user);
-
+  // פונקציית התנתקות מאובטחת
+  const signOut = async () => {
     try {
-      const role = await fetchUserRole(newSession.user.id);
-      setIsAdmin(role === 'admin');
-    } catch {
+      console.log('🚪 Signing out user...');
+      
+      // נקה מצב מקומי
+      setUser(null);
+      setSession(null);
       setIsAdmin(false);
-    } finally {
       setLoading(false);
+      
+      // התנתק מ-Supabase
+      await supabase.auth.signOut();
+      
+      // הפנה לדף הבית
+      window.location.href = '/';
+    } catch (error) {
+      console.error('❌ Error during signout:', error);
+      // גם אם יש שגיאה - הפנה הביתה
+      window.location.href = '/';
     }
   };
 
   useEffect(() => {
-    let active = true;
+    console.log('🔧 AuthProvider: Initializing secure authentication...');
 
-    const init = async () => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (active) await updateSession(session);
-      } catch (err) {
-        console.error('⚠️ שגיאת אתחול Auth:', err);
-        if (active) setLoading(false);
+        setLoading(true);
+        
+        // קבל את המפגש הנוכחי
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Error getting initial session:', error);
+          if (mounted) {
+            setLoading(false);
+            setInitialLoad(true);
+          }
+          return;
+        }
+
+        if (session?.user?.email_confirmed_at) {
+          console.log('✅ Valid session found:', session.user.email);
+          
+          if (mounted) {
+            setSession(session);
+            setUser(session.user);
+            
+            // בדיקת הרשאות אדמין
+            const adminStatus = await checkAdminStatus(session.user);
+            setIsAdmin(adminStatus);
+            
+            console.log('🔐 User authenticated - Admin status:', adminStatus);
+          }
+        } else {
+          console.log('ℹ️ No valid session or unconfirmed email');
+          if (mounted) {
+            setSession(null);
+            setUser(null);
+            setIsAdmin(false);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Auth initialization error:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          setInitialLoad(true);
+        }
       }
     };
 
-    init();
+    // הפעל אתחול
+    initializeAuth();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (active) await updateSession(session);
+    // האזן לשינויי אימות
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        console.log('🔧 Auth state changed:', event, !!newSession);
+        
+        if (!mounted) return;
+
+        if (event === 'SIGNED_IN' && newSession?.user?.email_confirmed_at) {
+          console.log('✅ User signed in:', newSession.user.email);
+          
+          setSession(newSession);
+          setUser(newSession.user);
+          
+          // דחה בדיקת אדמין כדי למנוע חסימות
+          setTimeout(async () => {
+            if (mounted) {
+              try {
+                const adminStatus = await checkAdminStatus(newSession.user);
+                setIsAdmin(adminStatus);
+                console.log('🔐 Admin status updated:', adminStatus);
+              } catch (error) {
+                console.error('❌ Error checking admin after sign in:', error);
+                setIsAdmin(false);
+              }
+            }
+          }, 100);
+          
+        } else if (event === 'SIGNED_OUT') {
+          console.log('🚪 User signed out');
+          setSession(null);
+          setUser(null);
+          setIsAdmin(false);
+          
+        } else if (event === 'TOKEN_REFRESHED' && newSession) {
+          console.log('🔄 Token refreshed');
+          setSession(newSession);
+          setUser(newSession.user);
+          // אל תשנה את isAdmin בזמן רענון טוקן
+        }
+        
+        if (mounted) {
+          setLoading(false);
+        }
       }
     );
 
+    // ניקוי
     return () => {
-      active = false;
-      listener?.subscription?.unsubscribe?.();
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
+  const contextValue: AuthContextType = {
+    user,
+    session,
+    isAdmin,
+    loading,
+    initialLoad,
+    signOut,
+  };
+
+  console.log('🔧 AuthProvider render:', { 
+    user: !!user, 
+    isAdmin, 
+    loading, 
+    initialLoad,
+    email: user?.email 
+  });
+
   return (
-    <AuthContext.Provider value={{ session, user, isAdmin, loading }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+// Hook ייעודי לגישה לאימות - זה הדרך היחידה לגשת לנתוני אימות!
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
 };

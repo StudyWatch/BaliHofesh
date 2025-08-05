@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-// Temporarily using mock data until real institutions hook is available
+import { Megaphone, Plus, Edit, Trash2, ExternalLink, Search } from 'lucide-react';
+
+// TODO: בעתיד תטען מה-DB
 const institutions = [
   { id: '1', name: 'האוניברסיטה העברית' },
   { id: '2', name: 'אוניברסיטת תל אביב' },
-  { id: '3', name: 'טכניון' }
+  { id: '3', name: 'הטכניון' }
 ];
-import { Megaphone, Plus, Edit, Trash2, Calendar } from 'lucide-react';
 
 interface SponsoredContent {
   id: string;
@@ -36,6 +37,7 @@ interface SponsoredContentFormData {
 }
 
 const SponsoredContentManagement = () => {
+  // דמו — להחליף ל-fetch מה-DB!
   const [sponsoredContent, setSponsoredContent] = useState<SponsoredContent[]>([
     {
       id: '1',
@@ -57,22 +59,23 @@ const SponsoredContentManagement = () => {
     }
   ]);
   const [editingContent, setEditingContent] = useState<SponsoredContent | null>(null);
+  const [search, setSearch] = useState('');
 
   const handleSaveContent = (contentData: Partial<SponsoredContent>) => {
     if (editingContent) {
-      setSponsoredContent(prev => prev.map(content => 
+      setSponsoredContent(prev => prev.map(content =>
         content.id === editingContent.id ? { ...content, ...contentData } : content
       ));
     } else {
       const newContent: SponsoredContent = {
         id: Date.now().toString(),
-        institutionId: '',
-        content: '',
-        startDate: '',
-        endDate: '',
-        isActive: true,
-        ...contentData
-      } as SponsoredContent;
+        institutionId: contentData.institutionId || '',
+        content: contentData.content || '',
+        link: contentData.link || '',
+        startDate: contentData.startDate || '',
+        endDate: contentData.endDate || '',
+        isActive: contentData.isActive ?? true,
+      };
       setSponsoredContent(prev => [...prev, newContent]);
     }
     setEditingContent(null);
@@ -93,17 +96,23 @@ const SponsoredContentManagement = () => {
     return content.isActive && now >= start && now <= end;
   };
 
+  // סינון
+  const filteredContent = sponsoredContent.filter(item =>
+    getInstitutionName(item.institutionId).includes(search) ||
+    item.content.includes(search)
+  );
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2">
             <Megaphone className="w-5 h-5" />
             ניהול פרסום ממומן לפי מוסדות
           </CardTitle>
-          <Dialog>
+          <Dialog open={!!editingContent} onOpenChange={open => !open && setEditingContent(null)}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingContent(null)}>
+              <Button onClick={() => setEditingContent(null)} className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-4 h-4 ml-2" />
                 הוסף פרסום
               </Button>
@@ -114,12 +123,23 @@ const SponsoredContentManagement = () => {
                   {editingContent ? 'עריכת פרסום' : 'הוספת פרסום חדש'}
                 </DialogTitle>
               </DialogHeader>
-              <SponsoredContentForm 
+              <SponsoredContentForm
                 content={editingContent}
                 onSave={handleSaveContent}
               />
             </DialogContent>
           </Dialog>
+        </div>
+        <div className="max-w-xs mt-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="חיפוש לפי מוסד/תוכן"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -128,19 +148,25 @@ const SponsoredContentManagement = () => {
             <TableRow>
               <TableHead>מוסד</TableHead>
               <TableHead>תוכן</TableHead>
-              <TableHead>תאריך התחלה</TableHead>
-              <TableHead>תאריך סיום</TableHead>
+              <TableHead>קישור</TableHead>
+              <TableHead>התחלה</TableHead>
+              <TableHead>סיום</TableHead>
               <TableHead>סטטוס</TableHead>
               <TableHead>פעולות</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sponsoredContent.map((content) => (
+            {filteredContent.map((content) => (
               <TableRow key={content.id}>
-                <TableCell className="font-medium">
-                  {getInstitutionName(content.institutionId)}
-                </TableCell>
+                <TableCell className="font-medium">{getInstitutionName(content.institutionId)}</TableCell>
                 <TableCell className="max-w-xs truncate">{content.content}</TableCell>
+                <TableCell>
+                  {content.link ? (
+                    <a href={content.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline flex items-center gap-1">
+                      קישור <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ) : <span className="text-gray-400">—</span>}
+                </TableCell>
                 <TableCell>{new Date(content.startDate).toLocaleDateString('he-IL')}</TableCell>
                 <TableCell>{new Date(content.endDate).toLocaleDateString('he-IL')}</TableCell>
                 <TableCell>
@@ -152,26 +178,13 @@ const SponsoredContentManagement = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setEditingContent(content)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>עריכת פרסום</DialogTitle>
-                        </DialogHeader>
-                        <SponsoredContentForm 
-                          content={content}
-                          onSave={handleSaveContent}
-                        />
-                      </DialogContent>
-                    </Dialog>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingContent(content)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"
@@ -183,6 +196,13 @@ const SponsoredContentManagement = () => {
                 </TableCell>
               </TableRow>
             ))}
+            {filteredContent.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-gray-500 py-6">
+                  לא נמצאו תוצאות.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>
@@ -190,7 +210,13 @@ const SponsoredContentManagement = () => {
   );
 };
 
-const SponsoredContentForm = ({ content, onSave }: { content: SponsoredContent | null, onSave: (data: Partial<SponsoredContent>) => void }) => {
+const SponsoredContentForm = ({
+  content,
+  onSave
+}: {
+  content: SponsoredContent | null,
+  onSave: (data: Partial<SponsoredContent>) => void
+}) => {
   const [formData, setFormData] = useState<SponsoredContentFormData>({
     institutionId: content?.institutionId || '',
     content: content?.content || '',
@@ -202,14 +228,15 @@ const SponsoredContentForm = ({ content, onSave }: { content: SponsoredContent |
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.institutionId || !formData.content || !formData.startDate || !formData.endDate) return;
     onSave(formData);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="institutionId">מוסד</Label>
-        <Select value={formData.institutionId} onValueChange={(value) => setFormData(prev => ({ ...prev, institutionId: value }))}>
+        <Label htmlFor="institutionId">מוסד *</Label>
+        <Select value={formData.institutionId} onValueChange={val => setFormData(prev => ({ ...prev, institutionId: val }))}>
           <SelectTrigger>
             <SelectValue placeholder="בחר מוסד" />
           </SelectTrigger>
@@ -223,11 +250,11 @@ const SponsoredContentForm = ({ content, onSave }: { content: SponsoredContent |
         </Select>
       </div>
       <div>
-        <Label htmlFor="content">תוכן הפרסום</Label>
+        <Label htmlFor="content">תוכן הפרסום *</Label>
         <Textarea
           id="content"
           value={formData.content}
-          onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+          onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
           required
         />
       </div>
@@ -237,41 +264,41 @@ const SponsoredContentForm = ({ content, onSave }: { content: SponsoredContent |
           id="link"
           type="url"
           value={formData.link}
-          onChange={(e) => setFormData(prev => ({ ...prev, link: e.target.value }))}
+          onChange={e => setFormData(prev => ({ ...prev, link: e.target.value }))}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="startDate">תאריך התחלה</Label>
+          <Label htmlFor="startDate">תאריך התחלה *</Label>
           <Input
             id="startDate"
             type="date"
             value={formData.startDate}
-            onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+            onChange={e => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
             required
           />
         </div>
         <div>
-          <Label htmlFor="endDate">תאריך סיום</Label>
+          <Label htmlFor="endDate">תאריך סיום *</Label>
           <Input
             id="endDate"
             type="date"
             value={formData.endDate}
-            onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+            onChange={e => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
             required
           />
         </div>
       </div>
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 space-x-reverse">
         <input
           type="checkbox"
           id="isActive"
           checked={formData.isActive}
-          onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
+          onChange={e => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
         />
-        <Label htmlFor="isActive">פעיל</Label>
+        <Label htmlFor="isActive" className="cursor-pointer">פעיל</Label>
       </div>
-      <Button type="submit" className="w-full">
+      <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
         {content ? 'עדכן פרסום' : 'הוסף פרסום'}
       </Button>
     </form>

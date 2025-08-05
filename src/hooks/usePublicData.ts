@@ -1,18 +1,17 @@
-// Dedicated hook for all public data that should bypass RLS
 import { useQuery } from '@tanstack/react-query';
-import { anonSupabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
-// This hook centralizes all public data fetching
+// קריאה לנתוני מוסד ציבוריים (פתוחה לציבור)
 export const usePublicInstitution = () => {
   return useQuery({
     queryKey: ['public-institution'],
     queryFn: async () => {
-      const { data, error } = await anonSupabase
+      const { data, error } = await supabase
         .from('institutions')
         .select('*')
         .eq('name_he', 'האוניברסיטה הפתוחה')
         .single();
-      
+
       if (error) {
         console.warn('Institution fetch failed, using fallback:', error);
         return {
@@ -23,26 +22,27 @@ export const usePublicInstitution = () => {
           updated_at: new Date().toISOString()
         };
       }
-      
+
       return data;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000, // 10 דקות
     retry: 1
   });
 };
 
+// קריאה לקורסים ציבוריים לפי מזהה מוסד
 export const usePublicCourses = (institutionId?: string) => {
   return useQuery({
     queryKey: ['public-courses', institutionId],
     queryFn: async () => {
       if (!institutionId) return [];
-      
-      const { data, error } = await anonSupabase
+
+      const { data, error } = await supabase
         .from('courses')
         .select('*')
         .eq('institution_id', institutionId)
         .order('name_he');
-      
+
       if (error) {
         console.warn('Courses fetch failed, using fallback:', error);
         return [
@@ -72,11 +72,11 @@ export const usePublicCourses = (institutionId?: string) => {
           }
         ];
       }
-      
+
       return data || [];
     },
     enabled: !!institutionId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 דקות
     retry: 1
   });
 };

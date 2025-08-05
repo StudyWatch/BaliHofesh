@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase, anonSupabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ExamDate {
   id: string;
@@ -15,12 +15,12 @@ export const useExamDates = (courseId: string) => {
   return useQuery({
     queryKey: ['exam-dates', courseId],
     queryFn: async () => {
-      const { data, error } = await anonSupabase
+      const { data, error } = await supabase
         .from('exam_dates')
         .select('*')
         .eq('course_id', courseId)
         .order('exam_date', { ascending: true });
-      
+
       if (error) throw error;
       return data as ExamDate[];
     }
@@ -29,7 +29,7 @@ export const useExamDates = (courseId: string) => {
 
 export const useCreateExamDate = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (data: Omit<ExamDate, 'id' | 'created_at' | 'updated_at'>) => {
       const { data: result, error } = await supabase
@@ -37,7 +37,7 @@ export const useCreateExamDate = () => {
         .insert(data)
         .select()
         .single();
-      
+
       if (error) throw error;
       return result;
     },
@@ -49,14 +49,14 @@ export const useCreateExamDate = () => {
 
 export const useDeleteExamDate = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('exam_dates')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

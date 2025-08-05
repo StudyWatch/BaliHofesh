@@ -42,7 +42,7 @@ import {
   type LecturerRating,
   type SubmitReviewData
 } from "@/hooks/useLecturerRatings";
-import { useAuth } from "@/App";
+import { useAuth } from '@/contexts/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
 

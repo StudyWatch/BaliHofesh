@@ -1,122 +1,99 @@
-
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MessageSquare, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-// Temporarily using mock data until real data hooks are available
-const institutions = [
-  { id: '1', shortName: 'האוניברסיטה העברית' },
-  { id: '2', shortName: 'אוניברסיטת תל אביב' },
-  { id: '3', shortName: 'טכניון' }
-];
+import { MessageSquare, CheckCircle, Clock, FileText } from 'lucide-react';
 
-const courses = [
-  { id: '1', name: 'מבוא למדעי המחשב' },
-  { id: '2', name: 'חשבון דיפרנציאלי' },
-  { id: '3', name: 'מבוא לפסיכולוגיה' }
-];
+// טיפוס תואם טבלת user_reports
+type UserReportStatus = 'pending' | 'resolved' | 'dismissed';
 
 interface UserReport {
   id: string;
-  courseId: string;
-  institutionId: string;
+  user_id?: string;
+  email?: string;
+  subject: string;
+  sub_category?: string;
   content: string;
-  reportType: 'exam-update' | 'error' | 'suggestion' | 'other';
-  status: 'pending' | 'resolved' | 'dismissed';
-  createdAt: string;
-  resolvedAt?: string;
-  userEmail?: string;
+  course_id?: string;
+  file_url?: string;
+  user_agent?: string;
+  page_referrer?: string;
+  status: UserReportStatus;
+  created_at: string;
+  resolved_at?: string;
 }
 
-const UserReportsManagement = () => {
-  const [reports, setReports] = useState<UserReport[]>([
-    {
-      id: '1',
-      courseId: '1',
-      institutionId: '1',
-      content: 'מועד ב של מבוא למדעי המחשב נדחה ליום חמישי',
-      reportType: 'exam-update',
-      status: 'pending',
-      createdAt: '2024-01-15T10:30:00Z',
-      userEmail: 'student@example.com'
-    },
-    {
-      id: '2',
-      courseId: '2',
-      institutionId: '1',
-      content: 'שגיאה בהצגת שם המרצה - צריך להיות פרופ גולן ולא פרופ לוי',
-      reportType: 'error',
-      status: 'pending',
-      createdAt: '2024-01-14T14:20:00Z',
-      userEmail: 'another@example.com'
-    },
-    {
-      id: '3',
-      courseId: '3',
-      institutionId: '2',
-      content: 'הוספתם פרטי יצירת קשר עם המרצה',
-      reportType: 'suggestion',
-      status: 'resolved',
-      createdAt: '2024-01-10T09:15:00Z',
-      resolvedAt: '2024-01-12T16:45:00Z',
-      userEmail: 'student2@example.com'
-    }
-  ]);
+// דוגמת קורסים – מומלץ להטעין בפועל מהשרת
+const courses: { [id: string]: string } = {
+  '1': 'מבוא למדעי המחשב',
+  '2': 'חשבון דיפרנציאלי',
+  '3': 'מבוא לפסיכולוגיה',
+  // ... לטעון את כל הקורסים/לקשר מה־DB
+};
 
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'resolved' | 'dismissed'>('all');
+function getCourseName(courseId?: string) {
+  return courseId && courses[courseId] ? courses[courseId] : (courseId ? courseId : '—');
+}
 
-  const handleResolveReport = (id: string) => {
-    setReports(prev => prev.map(report => 
-      report.id === id 
-        ? { ...report, status: 'resolved', resolvedAt: new Date().toISOString() }
-        : report
-    ));
-  };
+function getStatusBadge(status: UserReportStatus) {
+  switch (status) {
+    case 'pending':
+      return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 ml-1" />ממתין</Badge>;
+    case 'resolved':
+      return <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 ml-1" />טופל</Badge>;
+    case 'dismissed':
+      return <Badge variant="secondary">נדחה</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+}
 
-  const handleDismissReport = (id: string) => {
-    setReports(prev => prev.map(report => 
-      report.id === id 
-        ? { ...report, status: 'dismissed', resolvedAt: new Date().toISOString() }
-        : report
-    ));
-  };
+const UserReportsManagement: React.FC = () => {
+  const [reports, setReports] = useState<UserReport[]>([]);
+  const [filterStatus, setFilterStatus] = useState<'all' | UserReportStatus>('all');
+  const [loading, setLoading] = useState(true);
 
-  const getCourseName = (courseId: string) => {
-    return courses.find(course => course.id === courseId)?.name || 'קורס לא נמצא';
-  };
+  // טעינת פניות מה־DB
+  useEffect(() => {
+    const fetchReports = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('user_reports')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const getInstitutionName = (institutionId: string) => {
-    return institutions.find(inst => inst.id === institutionId)?.shortName || 'מוסד לא נמצא';
-  };
-
-  const getReportTypeLabel = (type: string) => {
-    const types: Record<string, string> = {
-      'exam-update': 'עדכון מועד',
-      'error': 'שגיאה',
-      'suggestion': 'הצעה',
-      'other': 'אחר'
+      if (!error && data) setReports(data as UserReport[]);
+      setLoading(false);
     };
-    return types[type] || type;
-  };
+    fetchReports();
+  }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 ml-1" />ממתין</Badge>;
-      case 'resolved':
-        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 ml-1" />טופל</Badge>;
-      case 'dismissed':
-        return <Badge variant="secondary">נדחה</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  // עדכון סטטוס (טופל/נדחה)
+  const updateReportStatus = async (id: string, newStatus: UserReportStatus) => {
+    const { error } = await supabase
+      .from('user_reports')
+      .update({ status: newStatus, resolved_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (!error) {
+      setReports(prev =>
+        prev.map(report =>
+          report.id === id
+            ? { ...report, status: newStatus, resolved_at: new Date().toISOString() }
+            : report
+        )
+      );
+    } else {
+      alert('שגיאה בעדכון סטטוס: ' + error.message);
     }
   };
 
-  const filteredReports = filterStatus === 'all' 
-    ? reports 
+  // סינון
+  const filteredReports = filterStatus === 'all'
+    ? reports
     : reports.filter(report => report.status === filterStatus);
 
   const pendingCount = reports.filter(r => r.status === 'pending').length;
@@ -135,128 +112,151 @@ const UserReportsManagement = () => {
             )}
           </CardTitle>
           <div className="flex gap-2">
-            <Button 
+            <Button
               variant={filterStatus === 'all' ? 'default' : 'outline'}
               onClick={() => setFilterStatus('all')}
               size="sm"
             >
               הכל ({reports.length})
             </Button>
-            <Button 
+            <Button
               variant={filterStatus === 'pending' ? 'default' : 'outline'}
               onClick={() => setFilterStatus('pending')}
               size="sm"
             >
               ממתינות ({pendingCount})
             </Button>
-            <Button 
+            <Button
               variant={filterStatus === 'resolved' ? 'default' : 'outline'}
               onClick={() => setFilterStatus('resolved')}
               size="sm"
             >
               טופלו ({reports.filter(r => r.status === 'resolved').length})
             </Button>
+            <Button
+              variant={filterStatus === 'dismissed' ? 'default' : 'outline'}
+              onClick={() => setFilterStatus('dismissed')}
+              size="sm"
+            >
+              נדחו ({reports.filter(r => r.status === 'dismissed').length})
+            </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>מוסד</TableHead>
-              <TableHead>קורס</TableHead>
-              <TableHead>סוג דיווח</TableHead>
-              <TableHead>תוכן</TableHead>
-              <TableHead>תאריך</TableHead>
-              <TableHead>סטטוס</TableHead>
-              <TableHead>פעולות</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredReports.map((report) => (
-              <TableRow key={report.id}>
-                <TableCell>{getInstitutionName(report.institutionId)}</TableCell>
-                <TableCell className="font-medium">{getCourseName(report.courseId)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{getReportTypeLabel(report.reportType)}</Badge>
-                </TableCell>
-                <TableCell className="max-w-xs">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="link" className="h-auto p-0 text-right justify-start">
-                        <span className="truncate">{report.content}</span>
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>פרטי הדיווח</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <strong>מוסד:</strong> {getInstitutionName(report.institutionId)}
-                        </div>
-                        <div>
-                          <strong>קורס:</strong> {getCourseName(report.courseId)}
-                        </div>
-                        <div>
-                          <strong>סוג דיווח:</strong> {getReportTypeLabel(report.reportType)}
-                        </div>
-                        <div>
-                          <strong>תוכן:</strong>
-                          <p className="mt-1 p-2 bg-gray-50 rounded">{report.content}</p>
-                        </div>
-                        <div>
-                          <strong>מייל דוחה:</strong> {report.userEmail}
-                        </div>
-                        <div>
-                          <strong>תאריך:</strong> {new Date(report.createdAt).toLocaleDateString('he-IL')} בשעה {new Date(report.createdAt).toLocaleTimeString('he-IL')}
-                        </div>
-                        {report.resolvedAt && (
-                          <div>
-                            <strong>טופל בתאריך:</strong> {new Date(report.resolvedAt).toLocaleDateString('he-IL')}
+        {loading ? (
+          <div className="text-center py-16 text-lg text-gray-400">טוען פניות...</div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>קטגוריה</TableHead>
+                  <TableHead>תת־קטגוריה</TableHead>
+                  <TableHead>קורס</TableHead>
+                  <TableHead>תוכן</TableHead>
+                  <TableHead>קובץ</TableHead>
+                  <TableHead>תאריך</TableHead>
+                  <TableHead>סטטוס</TableHead>
+                  <TableHead>פעולות</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredReports.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell>
+                      <Badge variant="outline">{report.subject}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {report.sub_category ? (
+                        <Badge className="bg-purple-100 text-purple-700">{report.sub_category}</Badge>
+                      ) : '—'}
+                    </TableCell>
+                    <TableCell className="font-medium">{getCourseName(report.course_id)}</TableCell>
+                    <TableCell className="max-w-xs">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="link" className="h-auto p-0 text-right justify-start">
+                            <span className="truncate">{report.content}</span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>פרטי הדיווח</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3 text-sm">
+                            <div><strong>קטגוריה:</strong> {report.subject}</div>
+                            <div><strong>תת־קטגוריה:</strong> {report.sub_category || '—'}</div>
+                            <div><strong>קורס:</strong> {getCourseName(report.course_id)}</div>
+                            <div><strong>תוכן:</strong>
+                              <p className="mt-1 p-2 bg-gray-50 rounded">{report.content}</p>
+                            </div>
+                            {report.file_url && (
+                              <div>
+                                <strong>קובץ:</strong>{" "}
+                                <a href={report.file_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline flex items-center gap-1">
+                                  <FileText className="w-4 h-4" /> לצפייה / להורדה
+                                </a>
+                              </div>
+                            )}
+                            <div><strong>אימייל:</strong> {report.email || '—'}</div>
+                            <div><strong>דפדפן:</strong> {report.user_agent || '—'}</div>
+                            <div>
+                              <strong>תאריך שליחה:</strong> {new Date(report.created_at).toLocaleDateString('he-IL')} {new Date(report.created_at).toLocaleTimeString('he-IL')}
+                            </div>
+                            {report.resolved_at && (
+                              <div>
+                                <strong>טופל בתאריך:</strong> {new Date(report.resolved_at).toLocaleDateString('he-IL')}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </TableCell>
-                <TableCell>{new Date(report.createdAt).toLocaleDateString('he-IL')}</TableCell>
-                <TableCell>{getStatusBadge(report.status)}</TableCell>
-                <TableCell>
-                  {report.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleResolveReport(report.id)}
-                      >
-                        <CheckCircle className="w-4 h-4 ml-1" />
-                        טופל
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDismissReport(report.id)}
-                      >
-                        דחה
-                      </Button>
-                    </div>
-                  )}
-                  {report.status !== 'pending' && (
-                    <span className="text-gray-500 text-sm">
-                      {report.status === 'resolved' ? 'טופל' : 'נדחה'}
-                    </span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        
-        {filteredReports.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            אין פניות {filterStatus === 'all' ? '' : `ב${filterStatus === 'pending' ? 'סטטוס ממתין' : 'סטטוס שנבחר'}`}
-          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </TableCell>
+                    <TableCell>
+                      {report.file_url ? (
+                        <a href={report.file_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        </a>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>{new Date(report.created_at).toLocaleDateString('he-IL')}</TableCell>
+                    <TableCell>{getStatusBadge(report.status)}</TableCell>
+                    <TableCell>
+                      {report.status === 'pending' ? (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => updateReportStatus(report.id, 'resolved')}
+                          >
+                            <CheckCircle className="w-4 h-4 ml-1" />
+                            טופל
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateReportStatus(report.id, 'dismissed')}
+                          >
+                            דחה
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 text-sm">
+                          {report.status === 'resolved' ? 'טופל' : 'נדחה'}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {filteredReports.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                אין פניות {filterStatus === 'all' ? '' : `ב${filterStatus === 'pending' ? 'סטטוס ממתין' : 'סטטוס שנבחר'}`}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

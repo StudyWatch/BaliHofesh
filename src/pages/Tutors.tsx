@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import TutorApplicationForm from "@/components/forms/TutorApplicationForm";
 import {
   ArrowRight, ArrowLeft, Star, MapPin, Phone, BookOpen,
-  Clock, DollarSign, Search, Tag, X, Sparkles, Heart, CheckCircle2
+  Clock, DollarSign, Search, Tag, X, Sparkles, Heart
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -23,15 +23,24 @@ const CATEGORY_COLORS: Record<string, string> = {
   "הנדסה": "from-blue-700 to-gray-800",
   "מדעי החיים": "from-teal-400 to-lime-500",
   "אנגלית": "from-yellow-400 to-red-400",
-  // ברירת מחדל
   "default": "from-blue-400 to-blue-700"
 };
-const DAY_SVG_BG = `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0.5' y='0.5' width='79' height='79' rx='19.5' fill='rgba(255,255,255,0.05)' stroke='%2380c9ff' stroke-dasharray='4 6'/%3E%3C/svg%3E")`;
-const NIGHT_SVG_BG = `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0.5' y='0.5' width='79' height='79' rx='19.5' fill='rgba(0,0,0,0.08)' stroke='%2338bdf8' stroke-dasharray='2 7'/%3E%3C/svg%3E")`;
-const DAY_GRAD = "linear-gradient(-45deg, #e0eafc 0%, #cfdef3 100%)";
-const NIGHT_GRAD = "linear-gradient(-45deg, #181829 0%, #2c5364 100%)";
-
-// ---- DATA LOGIC ----
+const NIGHT_BLOBS = (
+  <>
+    <div className="fixed top-[-120px] left-[-90px] w-[350px] h-[350px] bg-gradient-to-br from-blue-700 via-indigo-700 to-purple-700 opacity-25 blur-2xl rounded-full animate-blob" />
+    <div className="fixed right-[-60px] bottom-[-70px] w-[250px] h-[250px] bg-gradient-to-br from-cyan-400 via-sky-500 to-blue-700 opacity-20 blur-2xl rounded-full animate-blob animation-delay-3000" />
+    <div className="fixed top-1/3 left-1/3 w-[170px] h-[170px] bg-gradient-to-br from-fuchsia-600 via-pink-400 to-blue-400 opacity-15 blur-3xl rounded-full animate-blob animation-delay-1000" />
+    <style>{`
+      @keyframes blob { 0%,100%{transform:scale(1) translate(0,0);} 50%{transform:scale(1.11) translate(18px,28px);} }
+      .animate-blob { animation: blob 16s infinite cubic-bezier(.8,0,.2,1); }
+      .animation-delay-1000 { animation-delay: 1s; }
+      .animation-delay-3000 { animation-delay: 3s; }
+    `}</style>
+  </>
+);
+function getCategoryColor(category: string) {
+  return CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] || CATEGORY_COLORS["default"];
+}
 type CourseType = { id: string; name_he: string; category?: string; };
 function extractAllCourses(tutors: any[]): CourseType[] {
   const all: CourseType[] = [];
@@ -52,11 +61,6 @@ function extractAllCourses(tutors: any[]): CourseType[] {
   return Array.from(unique.values()).sort((a, b) => a.name_he.localeCompare(b.name_he, "he"));
 }
 
-// ---- UTILS ----
-function getCategoryColor(category: string) {
-  return CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] || CATEGORY_COLORS["default"];
-}
-
 // ---- CATEGORY CHIP ----
 const CategoryChip: React.FC<{ label: string; selected: boolean; onClick: () => void }> = ({ label, selected, onClick }) => (
   <motion.div
@@ -64,11 +68,11 @@ const CategoryChip: React.FC<{ label: string; selected: boolean; onClick: () => 
     whileTap={{ scale: 0.98 }}
     transition={{ type: "spring", stiffness: 400, damping: 28 }}
     className={`
-      flex items-center gap-2 px-5 py-2 rounded-full cursor-pointer select-none font-bold shadow-md border-2 border-transparent
-      ${selected
-        ? `bg-gradient-to-l ${getCategoryColor(label)} text-white border-blue-300`
-        : "bg-gray-100 dark:bg-gray-900 text-blue-700 dark:text-blue-100 hover:bg-blue-100 dark:hover:bg-gray-700"}
+      flex items-center gap-2 px-5 py-2 rounded-full cursor-pointer select-none font-bold shadow-lg border-2 border-transparent
       transition-all duration-200
+      ${selected
+        ? `bg-gradient-to-l ${getCategoryColor(label)} text-white border-cyan-400 shadow-lg drop-shadow-neon`
+        : "bg-zinc-900/90 text-blue-100 hover:bg-blue-900/60 border-blue-800"}
     `}
     onClick={onClick}
     style={{ direction: "rtl" }}
@@ -81,13 +85,12 @@ const CategoryChip: React.FC<{ label: string; selected: boolean; onClick: () => 
 // ---- COURSE CHIP ----
 const CourseChip: React.FC<{ label: string; selected: boolean; onClick: () => void }> = ({ label, selected, onClick }) => (
   <motion.div
-    whileHover={{ scale: 1.07 }}
-    transition={{ duration: 0.18 }}
+    whileHover={{ scale: 1.08 }}
     className={`
       px-3 py-1 rounded-lg cursor-pointer font-medium border
       ${selected
-        ? "bg-gradient-to-r from-cyan-600 to-blue-700 text-white border-blue-400 shadow"
-        : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-blue-100 border-gray-300 dark:border-gray-600 hover:bg-blue-100 dark:hover:bg-gray-600"}
+        ? "bg-gradient-to-r from-cyan-500 to-blue-700 text-white border-cyan-400 shadow"
+        : "bg-zinc-800 text-blue-100 border-blue-800 hover:bg-blue-900/50"}
       transition
     `}
     onClick={onClick}
@@ -109,7 +112,7 @@ const FilterBar: React.FC<{
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.3 }}
-    className="bg-white dark:bg-blue-950 rounded-2xl shadow-2xl p-6 flex flex-col md:flex-row items-center gap-5 border border-blue-100 dark:border-blue-900"
+    className="bg-gradient-to-l from-[#181b36] via-[#202f4e] to-[#232a43] rounded-2xl shadow-2xl p-6 flex flex-col md:flex-row items-center gap-5 border border-blue-900/50"
     style={{ direction: "rtl" }}
   >
     <div className="relative flex-1 w-full md:w-auto">
@@ -117,22 +120,22 @@ const FilterBar: React.FC<{
         placeholder="חפש מורה לפי שם..."
         value={searchTerm}
         onChange={e => setSearchTerm(e.target.value)}
-        className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-blue-100 pr-10 rounded-xl"
+        className="w-full bg-zinc-900/80 text-blue-100 pr-10 rounded-xl"
         dir="rtl"
       />
       {searchTerm && (
         <X
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 cursor-pointer text-gray-400 hover:text-blue-500"
+          className="absolute left-3 top-1/2 transform -translate-y-1/2 cursor-pointer text-blue-300 hover:text-cyan-400"
           onClick={() => setSearchTerm("")}
         />
       )}
     </div>
     <div className="flex items-center gap-4">
-      <span className="text-blue-700 dark:text-blue-200 font-medium">מיין לפי:</span>
+      <span className="text-cyan-200 font-bold">מיין לפי:</span>
       <select
         value={sortKey}
         onChange={e => setSortKey(e.target.value as any)}
-        className="bg-gray-100 dark:bg-gray-800 text-blue-900 dark:text-blue-100 rounded-xl px-3 py-1 border-none font-bold"
+        className="bg-zinc-900/80 text-cyan-200 rounded-xl px-3 py-1 border-none font-bold"
         dir="rtl"
       >
         <option value="rating">דירוג</option>
@@ -141,7 +144,7 @@ const FilterBar: React.FC<{
       </select>
       <button
         onClick={resetAll}
-        className="ml-3 text-sm text-cyan-700 hover:underline font-bold"
+        className="ml-3 text-sm text-blue-300 hover:underline font-bold"
         dir="rtl"
       >
         איפוס סינון
@@ -188,9 +191,9 @@ const TutorCard: React.FC<{
       transition={{ delay: index * 0.07, type: "spring", stiffness: 220, damping: 25 }}
       style={{ direction: "rtl" }}
     >
-      <Card className="relative h-full flex flex-col justify-between bg-white/95 dark:bg-blue-950/95 backdrop-blur-md rounded-2xl shadow-xl border-2 border-blue-50 dark:border-blue-800 hover:scale-[1.018] hover:shadow-2xl transition p-6 overflow-visible">
+      <Card className="relative h-full flex flex-col justify-between bg-gradient-to-br from-[#23264b] via-[#181b36ee] to-[#191a3b] dark:bg-[#181b32]/95 rounded-2xl shadow-2xl border border-blue-900 hover:scale-[1.019] hover:shadow-[0_0_44px_10px_#6a7bff44] transition p-6 overflow-visible">
         {isTodayStar && (
-          <span className="absolute top-0 right-0 m-2 bg-gradient-to-l from-amber-400 to-yellow-300 text-yellow-900 px-4 py-1 rounded-xl shadow font-black text-sm flex items-center gap-1">
+          <span className="absolute top-0 right-0 m-2 bg-gradient-to-l from-amber-400 to-yellow-300 text-yellow-900 px-4 py-1 rounded-xl shadow font-black text-sm flex items-center gap-1 z-30 drop-shadow-neon">
             <Sparkles className="w-5 h-5 animate-bounce" />
             מורה היום
           </span>
@@ -198,15 +201,15 @@ const TutorCard: React.FC<{
         <Button
           variant="ghost"
           size="icon"
-          className={`absolute left-3 top-3 z-10 ${isFavorite ? "text-pink-500" : "text-gray-300 dark:text-gray-500"}`}
+          className={`absolute left-3 top-3 z-10 ${isFavorite ? "text-pink-400" : "text-blue-200"}`}
           onClick={onToggleFav}
           aria-label={isFavorite ? "הסר ממועדפים" : "הוסף למועדפים"}
         >
-          <Heart fill={isFavorite ? "#ec4899" : "none"} className="w-6 h-6 transition" />
+          <Heart fill={isFavorite ? "#f472b6" : "none"} className="w-6 h-6 transition" />
         </Button>
         <div className="space-y-4 flex-1 flex flex-col">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-800 flex items-center justify-center shadow">
+            <div className="w-16 h-16 rounded-full overflow-hidden bg-blue-800 flex items-center justify-center shadow-xl ring-2 ring-cyan-400/70">
               <img
                 src={tutor.avatar_url || defaultAvatar}
                 alt={tutor.name}
@@ -215,17 +218,16 @@ const TutorCard: React.FC<{
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 truncate">{tutor.name}</h3>
+                <h3 className="text-lg font-bold text-blue-100 truncate">{tutor.name}</h3>
                 {tutor.is_verified && <Badge className="bg-green-500 text-white text-xs">מאומת</Badge>}
                 {tutor.is_online && <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" title="זמין עכשיו" />}
               </div>
               <div
-                className="flex items-center gap-1 text-sm text-yellow-500 mt-1 relative group"
+                className="flex items-center gap-1 text-sm text-yellow-400 mt-1 relative group"
                 onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}
               >
                 <Star className="w-4 h-4" />
                 <span className="font-semibold">{tutor.rating} ({tutor.reviews_count})</span>
-                {/* Tooltip */}
                 {showTip && (
                   <span className="absolute top-7 right-0 bg-black/90 text-white px-3 py-1 rounded-xl shadow-lg text-xs z-50 whitespace-nowrap pointer-events-none">
                     דירוג מבוסס על {tutor.reviews_count} חוות דעת
@@ -234,32 +236,32 @@ const TutorCard: React.FC<{
               </div>
             </div>
           </div>
-          <p className="text-blue-800 dark:text-blue-100 text-sm line-clamp-2 flex-1">{tutor.description}</p>
+          <p className="text-blue-100/90 text-sm line-clamp-2 flex-1">{tutor.description}</p>
           <div className="flex flex-wrap gap-1 mb-2">
             {subjects.map((s: string, i: number) => (
-              <Badge key={i} variant="secondary" className="text-xs bg-gradient-to-r from-blue-300 to-blue-600 text-white">{s}</Badge>
+              <Badge key={i} variant="secondary" className="text-xs bg-gradient-to-r from-blue-600 to-cyan-700 text-white shadow">{s}</Badge>
             ))}
           </div>
           <div className="space-y-1 text-sm">
             <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-blue-400 dark:text-blue-300" /><span>{tutor.location}</span>
+              <MapPin className="w-4 h-4 text-cyan-400" /><span className="text-blue-200">{tutor.location}</span>
             </div>
             <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-blue-400 dark:text-blue-300" /><span>₪{tutor.hourly_rate}/שעה</span>
+              <DollarSign className="w-4 h-4 text-cyan-400" /><span className="text-blue-200">₪{tutor.hourly_rate}/שעה</span>
             </div>
             {tutor.availability && (
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-400 dark:text-blue-300" /><span>{tutor.availability}</span>
+                <Clock className="w-4 h-4 text-cyan-400" /><span className="text-blue-200">{tutor.availability}</span>
               </div>
             )}
           </div>
         </div>
         <div className="mt-4 flex gap-2">
-          <Button variant="outline" className="flex-1 font-bold" onClick={() => onProfile(tutor.id)}>
+          <Button variant="outline" className="flex-1 font-bold border-cyan-500 text-cyan-400 hover:bg-blue-900/40">
             <BookOpen className="w-4 h-4 ml-2" /> פרופיל
           </Button>
           <Button
-            className="flex-1 bg-gradient-to-l from-cyan-500 to-blue-600 text-white font-bold hover:from-blue-600 hover:to-cyan-600"
+            className="flex-1 bg-gradient-to-l from-cyan-500 to-blue-600 text-white font-bold hover:from-blue-700 hover:to-cyan-600 drop-shadow-neon"
             onClick={() => onContact(tutor.phone)}
           >
             <Phone className="w-4 h-4 ml-2" /> צור קשר
@@ -272,19 +274,17 @@ const TutorCard: React.FC<{
 
 // ---- JOIN SQUARE ----
 const JoinSquare: React.FC<{ onApply: () => void }> = ({ onApply }) => (
-  <Card className="min-h-[220px] relative flex flex-col items-center justify-center bg-white/90 dark:bg-blue-950/90 backdrop-blur-md rounded-2xl shadow-xl border-2 border-blue-100 dark:border-blue-800 overflow-hidden">
-    <div className="absolute inset-0">
-      <div className="w-full h-full bg-gradient-to-tr from-blue-100 to-cyan-200 dark:from-blue-900 dark:to-blue-950 opacity-25" />
+  <Card className="min-h-[220px] relative flex flex-col items-center justify-center bg-gradient-to-br from-blue-800 to-indigo-900 rounded-2xl shadow-2xl border border-blue-900/70 overflow-hidden">
+    <div className="absolute inset-0 pointer-events-none">
+      <div className="w-full h-full bg-gradient-to-tr from-blue-900/70 to-cyan-800/60 opacity-40" />
     </div>
     <CardContent className="relative z-10 text-center px-6">
-      <Sparkles className="w-10 h-10 mx-auto text-blue-500 animate-pulse mb-2" />
-      <h3 className="text-2xl font-bold text-blue-700 dark:text-blue-100 mb-1">המקום הזה שמור בשבילך!</h3>
-      <p className="text-blue-900 dark:text-blue-100 mb-4 font-medium line-clamp-3">
-        למדת קורס והצטיינת? הזמן שלך ללוות תלמידים ולהעביר ידע!
-      </p>
+      <Sparkles className="w-10 h-10 mx-auto text-cyan-400 animate-pulse mb-2" />
+      <h3 className="text-2xl font-bold text-blue-100 mb-1 drop-shadow-neon">המקום הזה שמור בשבילך!</h3>
+      <p className="text-blue-200 mb-4 font-medium line-clamp-3">למדת קורס והצטיינת? הזמן שלך ללוות תלמידים ולהעביר ידע!</p>
       <Button
         size="lg"
-        className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white font-bold px-8 py-2 rounded-xl shadow-lg hover:from-blue-700 hover:to-cyan-700 transition"
+        className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white font-bold px-8 py-2 rounded-xl shadow-lg hover:from-blue-700 hover:to-cyan-700 transition drop-shadow-neon"
         onClick={onApply}
       >
         <BookOpen className="w-5 h-5 ml-2" /> הגש מועמדות
@@ -295,15 +295,15 @@ const JoinSquare: React.FC<{ onApply: () => void }> = ({ onApply }) => (
 
 // ---- SKELETON CARD ----
 const SkeletonCard: React.FC = () => (
-  <Card className="h-full bg-gray-100 dark:bg-blue-950 rounded-2xl p-6 animate-pulse border-2 border-blue-100 dark:border-blue-800">
+  <Card className="h-full bg-gradient-to-br from-blue-900/80 via-[#23264b] to-blue-900/60 rounded-2xl p-6 animate-pulse border border-blue-900">
     <CardContent className="space-y-4">
-      <div className="h-4 bg-blue-100 dark:bg-blue-800 rounded"></div>
-      <div className="h-4 w-5/6 bg-blue-100 dark:bg-blue-800 rounded"></div>
-      <div className="h-32 bg-blue-100 dark:bg-blue-800 rounded"></div>
-      <div className="h-4 bg-blue-100 dark:bg-blue-800 rounded w-3/4"></div>
+      <div className="h-4 bg-blue-900 rounded"></div>
+      <div className="h-4 w-5/6 bg-blue-900 rounded"></div>
+      <div className="h-32 bg-blue-900 rounded"></div>
+      <div className="h-4 bg-blue-900 rounded w-3/4"></div>
       <div className="flex gap-2">
-        <div className="h-8 w-8 bg-blue-100 dark:bg-blue-800 rounded-full"></div>
-        <div className="flex-1 h-8 bg-blue-100 dark:bg-blue-800 rounded"></div>
+        <div className="h-8 w-8 bg-blue-900 rounded-full"></div>
+        <div className="flex-1 h-8 bg-blue-900 rounded"></div>
       </div>
     </CardContent>
   </Card>
@@ -315,7 +315,6 @@ const TutorsPage: React.FC = () => {
   const { dir } = useLanguage();
   const { data: tutors = [], isLoading } = useTutors();
 
-  // --- FILTER STATES ---
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<"rating" | "price" | "name">("rating");
   const [currentPage, setCurrentPage] = useState(1);
@@ -323,16 +322,6 @@ const TutorsPage: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState("");
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const perPage = 9;
-
-  // --- THEME DETECTION ---
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  useEffect(() => {
-    const update = () => setIsDarkMode(document.documentElement.classList.contains("dark"));
-    update();
-    const obs = new MutationObserver(update);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => obs.disconnect();
-  }, []);
 
   // --- DATA DERIVATION ---
   const allCourses = useMemo(() => extractAllCourses(tutors), [tutors]);
@@ -391,7 +380,6 @@ const TutorsPage: React.FC = () => {
   const { favorites, toggleFav } = useFavorites();
   const [starOfDay, setStarOfDay] = useState<string | null>(null);
   useEffect(() => {
-    // "מורה היום" — אקראי לפי יום, תמיד אותו אחד לאותו יום
     if (filteredTutors.length) {
       const idx = new Date().getDate() % filteredTutors.length;
       setStarOfDay(filteredTutors[idx]?.id);
@@ -407,39 +395,26 @@ const TutorsPage: React.FC = () => {
     setSelectedCourse("");
   };
 
-  // ---- RENDER ----
   return (
     <div
       dir="rtl"
-      className="relative min-h-screen font-[Heebo,Arial,sans-serif] bg-none overflow-x-hidden"
-      style={{ background: "none" }}
+      className="relative min-h-screen font-[Heebo,Arial,sans-serif] overflow-x-hidden"
+      style={{
+        background:
+          "linear-gradient(135deg, #171c2b 0%, #232441 75%, #171c2b 100%)",
+      }}
     >
-      {/* Animated background with SVG grid */}
-      <motion.div
-        className="fixed inset-0 -z-10"
-        style={{
-          background: `${isDarkMode ? NIGHT_GRAD : DAY_GRAD}, ${isDarkMode ? NIGHT_SVG_BG : DAY_SVG_BG}`,
-          backgroundSize: "cover, 90px 90px",
-          animation: "move-bg 28s linear infinite alternate"
-        }}
-      />
-      <style>{`
-        @keyframes move-bg {
-          0% { background-position: 0% 0%, 0% 0%; }
-          100% { background-position: 150px 90px, 100px 60px; }
-        }
-        .line-clamp-2 { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden }
-      `}</style>
+      {NIGHT_BLOBS}
 
       {/* HEADER */}
-      <header className="bg-white/90 dark:bg-blue-950/90 backdrop-blur-lg shadow-md px-8 py-6 mb-8 rounded-b-3xl border-b-2 border-blue-200 dark:border-blue-800" style={{ direction: "rtl" }}>
+      <header className="bg-gradient-to-l from-[#19213c] via-[#21294a] to-[#161b2b] backdrop-blur-xl shadow-lg px-8 py-7 mb-10 rounded-b-3xl border-b-2 border-blue-900" style={{ direction: "rtl" }}>
         <div className="flex flex-row-reverse items-center justify-between">
           <Button variant="ghost" onClick={() => navigate("/")}>
-            <span className="flex items-center gap-2 font-bold">
+            <span className="flex items-center gap-2 font-bold text-blue-200 hover:text-white">
               <ArrowRight className="w-5 h-5" /> חזרה
             </span>
           </Button>
-          <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-l from-blue-700 to-cyan-400 bg-clip-text text-transparent drop-shadow">
+          <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-l from-blue-500 via-cyan-400 to-blue-300 bg-clip-text text-transparent drop-shadow-neon">
             מורים פרטיים <span aria-label="מורה" className="ml-1">👨‍🏫</span>
           </h1>
         </div>
@@ -455,9 +430,9 @@ const TutorsPage: React.FC = () => {
           resetAll={resetAll}
         />
 
-        {/* קטגוריות (צד ימין) */}
+        {/* קטגוריות */}
         <section>
-          <h2 className="text-xl font-bold text-blue-700 dark:text-blue-200 mb-2 text-right">בחר קטגוריה:</h2>
+          <h2 className="text-xl font-bold text-cyan-200 mb-2 text-right drop-shadow-neon">בחר קטגוריה:</h2>
           <div className="flex flex-wrap gap-3 justify-start md:justify-start">
             {categories.map((cat) => (
               <CategoryChip
@@ -477,9 +452,9 @@ const TutorsPage: React.FC = () => {
         {/* בחירת קורסים */}
         {selectedCategory !== "all" && (
           <section>
-            <h2 className="text-xl font-bold text-blue-700 dark:text-blue-200 mb-2 text-right">בחר קורס:</h2>
+            <h2 className="text-xl font-bold text-cyan-200 mb-2 text-right drop-shadow-neon">בחר קורס:</h2>
             <div className="flex flex-wrap gap-2 items-center">
-              <Search className="w-5 h-5 text-cyan-500" />
+              <Search className="w-5 h-5 text-cyan-400" />
               {coursesInCategory.map((course) => (
                 <CourseChip
                   key={course.id}
@@ -519,7 +494,7 @@ const TutorsPage: React.FC = () => {
 
         {/* עמודים */}
         {pages > 1 && (
-          <div className="flex justify-center items-center gap-4 mt-10 font-bold text-blue-800 dark:text-blue-100">
+          <div className="flex justify-center items-center gap-4 mt-10 font-bold text-cyan-200">
             <Button
               variant="ghost"
               disabled={currentPage === 1}
@@ -538,15 +513,15 @@ const TutorsPage: React.FC = () => {
           </div>
         )}
 
-        {/* קריאה להצטרפות למורים */}
-        <Card className="mt-16 bg-gradient-to-l from-blue-700 to-cyan-400 text-white rounded-3xl shadow-2xl border-none overflow-hidden">
+        {/* קריאה להצטרפות */}
+        <Card className="mt-16 bg-gradient-to-l from-cyan-700 via-blue-600 to-indigo-800 text-white rounded-3xl shadow-2xl border-none overflow-hidden drop-shadow-neon">
           <CardContent className="p-10 text-center">
-            <h2 className="text-3xl font-extrabold mb-2">רוצה להיות חלק מההצלחה?</h2>
+            <h2 className="text-3xl font-extrabold mb-2 drop-shadow-neon">רוצה להיות חלק מההצלחה?</h2>
             <p className="mb-6 opacity-90 text-lg font-bold">הגש מועמדות והצטרף לנבחרת המורים</p>
             <Button
               size="lg"
               variant="secondary"
-              className="bg-white text-blue-700 hover:bg-cyan-50 shadow-xl"
+              className="bg-white text-blue-800 hover:bg-cyan-50 shadow-xl"
               onClick={() => setShowApplicationForm(true)}
             >
               הגש מועמדות
@@ -560,6 +535,14 @@ const TutorsPage: React.FC = () => {
         isOpen={showApplicationForm}
         onClose={() => setShowApplicationForm(false)}
       />
+
+      {/* ניאון גלובלי */}
+      <style>{`
+        .drop-shadow-neon {
+          filter: drop-shadow(0 0 10px #63e0ff) drop-shadow(0 0 2px #00fff4) drop-shadow(0 0 1px #0003);
+        }
+        .line-clamp-2 { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden }
+      `}</style>
     </div>
   );
 };

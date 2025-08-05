@@ -27,7 +27,7 @@ export interface CreateCourseReviewData {
 
 // Get reviews for a specific course
 export const useCourseReviews = (courseId: string) => {
-  return useQuery<CourseReview[]>({
+  return useQuery({
     queryKey: ['course-reviews', courseId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -37,30 +37,32 @@ export const useCourseReviews = (courseId: string) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      // Fetch user profiles for non-anonymous reviews (optional, can be removed if not needed)
+      
+      // Get user profiles for non-anonymous reviews
       const reviewsWithProfiles = await Promise.all(
         (data || []).map(async (review) => {
           if (review.is_anonymous) {
             return { ...review, user_profile: null };
           }
+          
           const { data: profile } = await supabase
             .from('profiles')
             .select('name, avatar_url')
             .eq('id', review.user_id)
             .single();
+            
           return { ...review, user_profile: profile };
         })
       );
-
-      return reviewsWithProfiles as CourseReview[];
+      
+      return reviewsWithProfiles;
     },
     enabled: !!courseId
   });
 };
 
 export const useCourseRating = (courseId: string) => {
-  return useQuery<{ average: number; count: number }>({
+  return useQuery({
     queryKey: ['course-rating', courseId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -69,17 +71,17 @@ export const useCourseRating = (courseId: string) => {
         .eq('course_id', courseId);
 
       if (error) throw error;
-
+      
       if (!data || data.length === 0) {
         return { average: 0, count: 0 };
       }
-
+      
       const totalRating = data.reduce((sum, review) => sum + review.rating, 0);
       const average = totalRating / data.length;
-
-      return {
-        average: Math.round(average * 10) / 10,
-        count: data.length
+      
+      return { 
+        average: Math.round(average * 10) / 10, 
+        count: data.length 
       };
     },
     enabled: !!courseId
@@ -91,23 +93,20 @@ export const useCreateCourseReview = () => {
 
   return useMutation({
     mutationFn: async (reviewData: CreateCourseReviewData) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const user_id = userData?.user?.id;
-      if (!user_id) throw new Error("User not authenticated");
-
       const { data, error } = await supabase
         .from('course_reviews')
         .insert([{
           course_id: reviewData.course_id,
-          user_id,
+          user_id: (await supabase.auth.getUser()).data.user?.id,
           rating: reviewData.rating,
+          content: reviewData.review_text || '',
           review_text: reviewData.review_text || null,
           tips: reviewData.tips || null,
           is_anonymous: reviewData.is_anonymous || false
         }])
         .select()
         .single();
-
+      
       if (error) throw error;
       return data;
     },
@@ -123,15 +122,14 @@ export const useMarkReviewHelpful = () => {
 
   return useMutation({
     mutationFn: async (reviewId: string) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const user_id = userData?.user?.id;
-      if (!user_id) throw new Error("User not authenticated");
-
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error('Must be logged in');
+      
       const { error } = await supabase.rpc('increment_helpful_count', {
         review_id: reviewId,
-        user_id: user_id
+        user_id: user.user.id
       });
-
+      
       if (error) throw error;
     },
     onSuccess: () => {
@@ -149,7 +147,7 @@ export const useDeleteCourseReview = () => {
         .from('course_reviews')
         .delete()
         .eq('id', reviewId);
-
+      
       if (error) throw error;
     },
     onSuccess: () => {

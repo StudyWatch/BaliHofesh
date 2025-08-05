@@ -383,3 +383,205 @@ main.accessibility-stop-flashing * { animation: none !important; }
 main.accessibility-dark-mode { filter: invert(1) hue-rotate(180deg) !important; }
 main.accessibility-dark-mode img,
 main.accessibility-dark-mode video { filter: invert(1) hue-rotate(180deg) !important; }
+/* מצב לילה מתקדם: Glass + Neon + Shadows + Soft Blur */
+
+/* --- Glassmorphism + Neon + Gradient Depth Night Theme --- */
+
+/* רקע כללי */
+html.dark, body.dark {
+  background: linear-gradient(135deg, #1e1b38 0%, #31216b 70%, #2a2245 100%) fixed !important;
+  color: #e0e6f7;
+  min-height: 100vh;
+  font-family: "Heebo", "Rubik", Arial, sans-serif;
+}
+
+/* קופסאות עיקריות */
+.dark .card,
+.dark .main-card,
+.dark .rounded-2xl,
+.dark .rounded-3xl,
+.dark .bg-white,
+.dark .bg-white\/90,
+.dark .bg-white\/80 {
+  background: linear-gradient(111deg, rgba(37,38,72,0.89) 75%, rgba(70,62,143,0.84) 100%) !important;
+  box-shadow: 0 8px 40px 0 #3c2f7659, 0 2px 12px #bb97f445;
+  border-radius: 1.8rem !important;
+  border: 1.7px solid #7e6cff40;
+  backdrop-filter: blur(14px) saturate(1.07);
+  transition: box-shadow 0.22s, background 0.33s;
+}
+.dark .card:hover, .dark .main-card:hover {
+  box-shadow: 0 12px 52px #7f5be27c, 0 5px 18px #7b7de244;
+  filter: brightness(1.09) saturate(1.13);
+}
+
+/* קופסאות קטנות/צדדיות */
+.dark .secondary-card,
+.dark .small-card,
+.dark .bg-indigo-950\/70,
+.dark .bg-indigo-900\/80,
+.dark .bg-gradient-to-l {
+  background: linear-gradient(120deg, rgba(27,27,49,0.93) 60%, rgba(54,52,84,0.98) 100%) !important;
+  border: 1.5px solid #4423a833;
+  box-shadow: 0 3px 18px #392a6d44;
+  border-radius: 1.15rem !important;
+}
+
+/* טאבים – active בהיר/מודגש, אחרים כהים */
+.dark .TabsList {
+  background: linear-gradient(98deg, #252244 80%, #3a2d63 100%);
+  border-radius: 1.2rem !important;
+  box-shadow: 0 2px 16px #32216655;
+}
+.dark .TabsTrigger {
+  background: transparent !important;
+  color: #e7dbfd !important;
+  border: none;
+}
+.dark .TabsTrigger[data-state=active] {
+  background: linear-gradient(90deg, #6f6ded 30%, #a573ff 100%) !important;
+  color: #fff !important;
+  border-radius: 1.7rem !important;
+  font-weight: bold;
+  box-shadow: 0 0 14px 2.5px #9d89ff99;
+  border: none !important;
+  text-shadow: 0 0 4px #e5dbff40;
+}
+.dark .TabsTrigger:not([data-state=active]):hover {
+  background: linear-gradient(95deg, #393064 60%, #5e48b3 100%) !important;
+  color: #dad2ff !important;
+  transition: 0.18s;
+}
+
+/* כפתורים – צבע עיקרי ניאון/גרדיאנט, כפתור משני כהה, outline בהיר */
+.dark .btn,
+.dark .button,
+.dark .bg-indigo-500 {
+  background: linear-gradient(96deg, #6b46c1 50%, #44d6ff 120%) !important;
+  color: #fff !important;
+  font-weight: 700;
+  border: none;
+  border-radius: 1.7rem;
+  box-shadow: 0 2px 18px #54c6fa55;
+  transition: box-shadow 0.19s, filter 0.14s;
+}
+.dark .btn:hover, .dark .button:hover {
+  box-shadow: 0 6px 30px #79eaff, 0 0 6px #a98fff99;
+  filter: brightness(1.13);
+}
+.dark .btn-outline,
+.dark .button-outline {
+  background: transparent !important;
+  border: 2px solid #7264e5 !important;
+  color: #ccbaff !important;
+}
+.dark .btn-outline:hover, .dark .button-outline:hover {
+  background: linear-gradient(91deg, #393064 60%, #5748b3 100%) !important;
+  color: #fff !important;
+}
+
+/* תגיות */
+.dark .badge,
+.dark .badge-secondary {
+  background: linear-gradient(93deg, #2f366d 60%, #7a67e9 100%) !important;
+  color: #ffe6ff !important;
+  box-shadow: 0 1px 14px #5143a97a;
+  border: 0 !important;
+  font-weight: 700;
+}
+.dark .badge[data-variant="destructive"], .dark .bg-red-500 {
+  background: linear-gradient(96deg, #ff4560 70%, #f26585 100%) !important;
+  color: #fff !important;
+  font-weight: 800;
+}
+.dark .badge[data-variant="success"], .dark .bg-green-400 {
+  background: linear-gradient(96deg, #13e97b 70%, #46ffcc 100%) !important;
+  color: #002c1b !important;
+  font-weight: 700;
+}
+.dark .badge[data-variant="info"] {
+  background: linear-gradient(92deg, #41b7ff 40%, #beadff 120%) !important;
+  color: #01305c !important;
+}
+
+/* אפקט Glow חזק */
+.dark .badge-glow {
+  box-shadow: 0 0 16px 2.7px #9a99ff, 0 0 7px 1.5px #41e7e4b6;
+  border: 1.2px solid #aa9efb;
+}
+
+/* Header/Toolbar – background גלילי */
+.dark .Header, .dark .toolbar, .dark .appbar, .dark .navbar {
+  background: linear-gradient(95deg, #1e1a2c 60%, #463f75 100%) !important;
+  border-bottom: 2.5px solid #382fa0;
+  box-shadow: 0 2px 18px #32216633;
+}
+
+/* Avatar/profile */
+.dark .Avatar, .dark .avatar, .dark .rounded-full {
+  border: 2.3px solid #67f8fd !important;
+  box-shadow: 0 5px 19px 0 #67f8fd44;
+  background: linear-gradient(90deg, #1e1a2c 90%, #463f75 100%) !important;
+}
+
+/* גרפים */
+.dark .recharts-surface, .dark .recharts-wrapper {
+  background: transparent !important;
+}
+.dark .recharts-pie-label-text, .dark .recharts-tooltip-label, .dark .recharts-tooltip-item-list {
+  fill: #b8c4ff !important;
+  color: #d2f8ff !important;
+  text-shadow: 0 2px 8px #32226685;
+}
+.dark .recharts-sector {
+  filter: drop-shadow(0 0 10px #7b5bff99);
+  stroke-width: 3px;
+}
+
+/* Scrollbar */
+body.dark ::-webkit-scrollbar {
+  width: 13px;
+  background: #251c36;
+}
+body.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(120deg, #6351ff 0%, #463cbf 100%);
+  border-radius: 14px;
+  border: 2.5px solid #2b2a45;
+}
+body.dark ::-webkit-scrollbar-thumb:hover {
+  background: #8573ff;
+}
+
+/* Card Titles, Labels – בולטים */
+.dark .cardTitle, .dark .CardTitle, .dark .text-xl, .dark .text-lg {
+  color: #bfb3ff !important;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1.5px 12px #7b5bff29;
+  font-weight: bold;
+}
+
+/* גבולות/פרדות */
+.dark .Separator, .dark .border, .dark .border-indigo-100, .dark .border-zinc-800 {
+  border-color: #3a29a8 !important;
+}
+
+/* רקעים משתנים לרכיבים מיוחדים */
+.dark .bg-gradient-special {
+  background: linear-gradient(120deg, #4f65a9 10%, #7b5bff 90%);
+}
+.dark .bg-gradient-success {
+  background: linear-gradient(94deg, #13e97b 30%, #46ffcc 100%);
+}
+.dark .bg-gradient-error {
+  background: linear-gradient(96deg, #ff4560 30%, #f26585 100%);
+}
+
+@media (max-width: 700px) {
+  .dark .card,
+  .dark .main-card,
+  .dark .rounded-2xl,
+  .dark .rounded-3xl {
+    background: rgba(36, 36, 70, 0.97) !important;
+    border-radius: 1.12rem !important;
+  }
+}

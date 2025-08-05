@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { anonSupabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Course {
   id: string;
@@ -25,7 +25,7 @@ export const useCourses = (institutionId?: string) => {
   return useQuery({
     queryKey: ['courses', institutionId],
     queryFn: async () => {
-      const query = anonSupabase
+      const query = supabase
         .from('courses')
         .select(`
           *,
@@ -44,7 +44,7 @@ export const useCourses = (institutionId?: string) => {
       }
 
       const { data, error } = await query;
-      
+
       if (error) throw error;
       return data as Course[];
     }
@@ -55,7 +55,7 @@ export const useAllCourses = () => {
   return useQuery({
     queryKey: ['all-courses'],
     queryFn: async () => {
-      const { data, error } = await anonSupabase
+      const { data, error } = await supabase
         .from('courses')
         .select(`
           *,
@@ -68,7 +68,7 @@ export const useAllCourses = () => {
           )
         `)
         .order('name_he');
-      
+
       if (error) throw error;
       return data as Course[];
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardHeader,
@@ -11,13 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
-  Video,
   ExternalLink,
   User,
-  Clock,
-  Mail,
-  Phone,
-  Share2
+  Clock
 } from "lucide-react";
 import {
   useStudyRooms,
@@ -26,11 +22,53 @@ import {
 } from "@/hooks/useStudyRooms";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 interface StudyRoomsSectionProps {
   courseId: string;
   isLoggedIn: boolean;
+}
+
+// הגדרות Regex לכל פלטפורמה
+const platformPatterns = [
+  {
+    key: "zoom",
+    label: "Zoom",
+    regex: /^https:\/\/(www\.)?(zoom\.us|us04web\.zoom\.us)\/j\/\d{9,}/
+  },
+  {
+    key: "google-meet",
+    label: "Google Meet",
+    regex: /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}(?:\?.*)?$/
+  },
+  {
+    key: "teams",
+    label: "Teams",
+    regex: /^https:\/\/teams\.microsoft\.com\/l\/meetup-join\/.*/
+  },
+  {
+    key: "jitsi",
+    label: "Jitsi Meet",
+    regex: /^https:\/\/meet\.jit\.si\/[A-Za-z0-9_\-]{3,}/
+  }
+];
+
+// זיהוי פלטפורמה לפי regex
+function detectPlatformFromLink(link: string): string {
+  const plat = platformPatterns.find((p) => p.regex.test(link));
+  return plat?.key || "";
+}
+
+// ולידציה: רק קישור לפגישה יעבור
+function isValidMeetingLink(link: string): boolean {
+  if (!link.startsWith("https://")) return false;
+  if (
+    link.includes("javascript:") ||
+    link.includes("base64,") ||
+    link.includes("<script") ||
+    link.includes("data:")
+  )
+    return false;
+  return !!platformPatterns.find((p) => p.regex.test(link));
 }
 
 const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => {
@@ -39,13 +77,27 @@ const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => 
   const [description, setDescription] = useState("");
   const [link, setLink] = useState("");
   const [contactInfo, setContactInfo] = useState("");
-  const [platform, setPlatform] = useState("zoom");
   const [duration, setDuration] = useState(60); // דקות
+  const [platformDetected, setPlatformDetected] = useState<string>("");
+  const [linkError, setLinkError] = useState<string>("");
   const { data: studyRooms = [] } = useStudyRooms(courseId);
   const createStudyRoom = useCreateStudyRoom();
   const updateStudyRoom = useUpdateStudyRoom();
   const { toast } = useToast();
 
+  // זיהוי פלטפורמה אוטומטי בלבד
+  const handleLinkChange = (value: string) => {
+    setLink(value);
+    const detected = detectPlatformFromLink(value);
+    setPlatformDetected(detected);
+    if (value && !detected) {
+      setLinkError("יש להזין קישור מלא לחדר/מפגש תקני בלבד (Zoom / Meet / Teams / Jitsi)");
+    } else {
+      setLinkError("");
+    }
+  };
+
+  // ולידציה לפני שמירה
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data: { user } } = await supabase.auth.getUser();
@@ -53,6 +105,24 @@ const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => 
       toast({
         title: "שגיאה",
         description: "יש להתחבר כדי לפתוח מפגש",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!isValidMeetingLink(link)) {
+      setLinkError("יש להזין קישור מלא לחדר/מפגש תקני בלבד (Zoom / Meet / Teams / Jitsi)");
+      toast({
+        title: "קישור לא תקין",
+        description: "נא להדביק קישור מלא לחדר פגישה, לא לעמוד הבית של הפלטפורמה.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!platformDetected) {
+      setLinkError("יש להזין קישור מלא לפגישה מפלטפורמה נתמכת בלבד");
+      toast({
+        title: "פלטפורמה לא מזוהה",
+        description: "יש להזין קישור לחדר/מפגש תקני בפלטפורמה נתמכת בלבד.",
         variant: "destructive"
       });
       return;
@@ -67,7 +137,7 @@ const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => 
         description,
         link,
         contact_info: contactInfo,
-        platform,
+        platform: platformDetected,
         expires_at: expiresAt.toISOString(),
         created_by: user.id,
         status: "open"
@@ -77,9 +147,10 @@ const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => 
       setDescription("");
       setLink("");
       setContactInfo("");
-      setPlatform("zoom");
+      setPlatformDetected("");
       setDuration(60);
       setShowForm(false);
+      setLinkError("");
 
       toast({
         title: "הצלחה!",
@@ -142,6 +213,7 @@ const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => 
           <form
             onSubmit={handleSubmit}
             className="mb-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800 space-y-4"
+            autoComplete="off"
           >
             <div>
               <label className="block text-sm font-medium mb-2 text-right">
@@ -156,30 +228,34 @@ const StudyRoomsSection = ({ courseId, isLoggedIn }: StudyRoomsSectionProps) => 
             </div>
             <div>
               <label className="block text-sm font-medium mb-2 text-right">
-                פלטפורמה
-              </label>
-              <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר פלטפורמה" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="zoom">Zoom</SelectItem>
-                  <SelectItem value="google-meet">Google Meet</SelectItem>
-                  <SelectItem value="teams">Teams</SelectItem>
-                  <SelectItem value="other">אחר</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-right">
-                קישור למפגש
+                קישור למפגש <span className="text-xs text-gray-500">(Zoom / Meet / Teams / Jitsi)</span>
               </label>
               <Input
                 type="url"
                 value={link}
-                onChange={(e) => setLink(e.target.value)}
-                placeholder="https://zoom.us/j/..."
+                onChange={(e) => handleLinkChange(e.target.value)}
+                placeholder="https://zoom.us/j/123456789"
                 required
+                className={linkError ? "border-red-500" : ""}
+              />
+              {link && platformDetected && (
+                <div className="text-xs text-green-700 mt-1">
+                  זוהתה פלטפורמה: <b>{platformPatterns.find(p => p.key === platformDetected)?.label || ""}</b>
+                </div>
+              )}
+              {linkError && (
+                <div className="text-xs text-red-600 mt-1">{linkError}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2 text-right">
+                תיאור (לא חובה)
+              </label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="פרטים נוספים למשתתפים..."
+                rows={2}
               />
             </div>
             <div>

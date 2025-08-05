@@ -1,156 +1,135 @@
-// src/pages/Admin.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/App';
-import { useUserProfile } from '@/hooks/useProfile';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import AdminMobileMenu from '@/components/admin/AdminMobileMenu';
-import AdminDashboard from '@/components/admin/AdminDashboard';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
+
 import InstitutionsManagement from '@/components/admin/InstitutionsManagement';
-import SemesterManagement from '@/components/admin/SemesterManagement';
-import CourseGroupsManagement from '@/components/admin/CourseGroupsManagement';
 import ExamsManagement from '@/components/admin/ExamsManagement';
-import CollaborationManagement from '@/components/admin/CollaborationManagement';
-import MessagesManagement from '@/components/admin/MessagesManagement';
-import UsersManagement from '@/components/admin/UsersManagement';
 import TutorsManagement from '@/components/admin/TutorsManagement';
 import TipsManagement from '@/components/admin/TipsManagement';
 import SponsoredContentManagement from '@/components/admin/SponsoredContentManagement';
 import StoreManagement from '@/components/admin/StoreManagement';
 import UserReportsManagement from '@/components/admin/UserReportsManagement';
+import UsersManagement from '@/components/admin/UsersManagement';
+import CollaborationManagement from '@/components/admin/CollaborationManagement';
+import MessagesManagement from '@/components/admin/MessagesManagement';
+import SemesterManagement from '@/components/admin/SemesterManagement';
+import CourseGroupsManagement from '@/components/admin/CourseGroupsManagement';
+import AdvancedAdminDashboard from '@/components/admin/AdvancedAdminDashboard';
+import CourseReviewsManagement from '@/components/admin/CourseReviewsManagement';
+import AdminMobileMenu from '@/components/admin/AdminMobileMenu';
+
 import {
-  Shield, BarChart3, BookOpen, Calendar, UsersRound, UserCheck, Mail,
-  Users, GraduationCap, Lightbulb, Megaphone, ShoppingCart, MessageSquare
+  BookOpen, Calendar, GraduationCap, Lightbulb, Megaphone, ShoppingCart,
+  MessageSquare, Users, Shield, UserCheck, BarChart3, Mail, UsersRound
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+
+import { AdminTab } from '@/types/admin';
+
+const adminSections: { id: AdminTab; icon: React.ElementType; label: string; component: React.ReactNode }[] = [
+  { id: 'dashboard', icon: BarChart3, label: 'דשבורד', component: <AdvancedAdminDashboard /> },
+  { id: 'reviews', icon: MessageSquare, label: 'ביקורות', component: <CourseReviewsManagement /> },
+  { id: 'courses', icon: BookOpen, label: 'קורסים', component: <InstitutionsManagement /> },
+  { id: 'semesters', icon: Calendar, label: 'סמסטרים', component: <SemesterManagement /> },
+  { id: 'course-groups', icon: UsersRound, label: 'קבוצות קורסים', component: <CourseGroupsManagement /> },
+  { id: 'exams', icon: Calendar, label: 'בחינות', component: <ExamsManagement /> },
+  { id: 'collaboration', icon: UserCheck, label: 'שיתופי פעולה', component: <CollaborationManagement /> },
+  { id: 'messages', icon: Mail, label: 'הודעות', component: <MessagesManagement /> },
+  { id: 'users', icon: Users, label: 'משתמשים', component: <UsersManagement /> },
+  { id: 'tutors', icon: GraduationCap, label: 'מורים', component: <TutorsManagement /> },
+  { id: 'tips', icon: Lightbulb, label: 'טיפים', component: <TipsManagement /> },
+  { id: 'sponsored', icon: Megaphone, label: 'פרסום', component: <SponsoredContentManagement /> },
+  { id: 'store', icon: ShoppingCart, label: 'חנות', component: <StoreManagement /> },
+  { id: 'reports', icon: MessageSquare, label: 'פניות', component: <UserReportsManagement /> },
+];
+
+const bgGradient =
+  'bg-gradient-to-br from-[#F0F4FF] via-[#e5ecff] to-[#f8f9fc] dark:from-[#141e30] dark:via-[#283e51] dark:to-[#1a1a2e]';
 
 const Admin = () => {
   const { dir } = useLanguage();
-  const { user, loading: authLoading } = useAuth();
-  const { data: profile, isLoading: profileLoading } = useUserProfile();
-
-  // לאחד את טעינות האותנטיקציה והפרופיל
-  const loading = authLoading || profileLoading;
-
-  const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'courses' | 'semesters' | 'course-groups' | 'exams' |
-    'collaboration' | 'messages' | 'users' | 'tutors' | 'tips' |
-    'sponsored' | 'store' | 'reports'
-  >('dashboard');
-
-  useEffect(() => {
-    // לוג עזר לפיתוח בלבד
-    if (!loading) {
-      console.log('🧠 [Admin] user:', user);
-      console.log('🧠 [Admin] profile:', profile);
-    }
-  }, [loading, user, profile]);
-
-  // מניעת גישה והפסקת כל רינדור עד סיום טעינה
-  if (loading || !user || !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-blue-600 font-bold text-lg">
-        טוען נתוני גישה...
-      </div>
-    );
-  }
-
-  // בדיקת הרשאת אדמין – ולא לרנדר שום דבר אם אין גישה
-  if (profile.role !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors">
-        <Card className="p-8 text-center">
-          <Shield className="w-16 h-16 mx-auto mb-4 text-red-500" />
-          <h1 className="text-2xl font-bold mb-2">גישה נדחתה</h1>
-          <p className="text-gray-600 dark:text-gray-300">אין לך הרשאות גישה לדף הניהול</p>
-          <Button className="mt-4" onClick={() => window.location.href = '/'}>חזור לדף הבית</Button>
-        </Card>
-      </div>
-    );
-  }
-
-  const adminSections = [
-    { id: 'dashboard', icon: BarChart3, label: 'לוח בקרה' },
-    { id: 'courses', icon: BookOpen, label: 'ניהול קורסים' },
-    { id: 'semesters', icon: Calendar, label: 'סמסטרים' },
-    { id: 'course-groups', icon: UsersRound, label: 'קבוצות קורסים' },
-    { id: 'exams', icon: Calendar, label: 'בחינות' },
-    { id: 'collaboration', icon: UserCheck, label: 'שיתוף פעולה' },
-    { id: 'messages', icon: Mail, label: 'הודעות' },
-    { id: 'users', icon: Users, label: 'משתמשים' },
-    { id: 'tutors', icon: GraduationCap, label: 'מורים' },
-    { id: 'tips', icon: Lightbulb, label: 'טיפים' },
-    { id: 'sponsored', icon: Megaphone, label: 'פרסום' },
-    { id: 'store', icon: ShoppingCart, label: 'החנות' },
-    { id: 'reports', icon: MessageSquare, label: 'פניות' },
-  ] as const;
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const { profile } = useAdminAuth();
 
   return (
-    <div dir={dir} className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      {/* Header */}
-      <motion.header
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.4 }}
-        className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
-      >
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3 space-x-reverse">
-            <Shield className="w-6 h-6 text-blue-600" />
-            <div>
-              <h1 className="text-lg lg:text-2xl font-bold text-gray-900 dark:text-gray-100">לוח בקרה - אדמין</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">ניהול הפלטפורמה</p>
-            </div>
-          </div>
-          <AdminMobileMenu activeTab={activeTab} onTabChange={setActiveTab} />
+    <ProtectedRoute requireAdmin={true}>
+      <div className={`min-h-screen flex flex-col ${bgGradient}`} dir={dir}>
+        {/* רקע SVG */}
+        <div aria-hidden className="fixed inset-0 -z-10 pointer-events-none">
+          <svg className="absolute top-[-130px] right-[-100px] opacity-25 w-[600px] h-[300px] rotate-[18deg] blur-[1px] hidden lg:block"
+            viewBox="0 0 800 400" fill="none">
+            <ellipse cx="400" cy="200" rx="320" ry="80" fill="#3b82f6"/>
+          </svg>
+          <svg className="absolute bottom-[-120px] left-[-70px] opacity-20 w-[400px] h-[300px] blur-[1px] hidden md:block"
+            viewBox="0 0 500 300" fill="none">
+            <ellipse cx="250" cy="150" rx="180" ry="50" fill="#818cf8"/>
+          </svg>
         </div>
-      </motion.header>
+        
+        {/* Header */}
+        <header className="w-full max-w-7xl mx-auto flex flex-col items-center justify-center py-8 px-3 md:px-10">
+          <div className="flex items-center gap-3 md:gap-5">
+            <Shield className="w-8 h-8 text-blue-600 drop-shadow" />
+            <h1 className="text-3xl md:text-4xl font-black text-blue-800 dark:text-blue-200 tracking-tight">
+              דשבורד אדמין
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              ניהול האוניברסיטה הפתוחה - באלי חופש
+            </span>
+            <span className="text-xs px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-100 font-bold shadow">
+              {profile?.name ? `שלום ${profile.name}` : 'מנהל מערכת'}
+            </span>
+          </div>
+        </header>
 
-      {/* תוכן טאבים */}
-      <div className="container mx-auto px-6 py-8">
-        <div className="hidden lg:grid grid-cols-12 gap-3 mb-6">
-          {adminSections.map(({ id, icon: Icon, label }) => (
+        {/* Tabs Nav */}
+        <nav
+          className="flex flex-row items-center gap-2 md:gap-5 px-2 md:px-8 py-2 mb-1 w-full overflow-x-auto
+          bg-white/70 dark:bg-gray-900/80 shadow-lg sticky top-0 z-30 whitespace-nowrap border-b border-gray-200 dark:border-gray-800
+          backdrop-blur"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {adminSections.map(section => (
             <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-all
-                ${activeTab === id 
-                  ? 'bg-blue-100 dark:bg-blue-900 shadow-lg' 
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              key={section.id}
+              onClick={() => setActiveTab(section.id)}
+              className={`
+                flex flex-col items-center justify-center px-3 py-2 transition
+                rounded-2xl font-bold select-none
+                duration-150
+                ${activeTab === section.id
+                  ? "bg-gradient-to-t from-blue-100 via-blue-50 to-white dark:from-blue-900 dark:via-blue-950 dark:to-gray-900 shadow-lg scale-105 text-blue-700 dark:text-blue-100"
+                  : "text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950"}
+                focus:outline-none
+              `}
+              style={{ minWidth: 82 }}
+              aria-current={activeTab === section.id}
+              tabIndex={0}
             >
-              <Icon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              <span className="text-xs text-gray-800 dark:text-gray-200">{label}</span>
+              <section.icon className={`w-6 h-6 mb-1 transition-transform duration-150 ${activeTab === section.id ? "scale-110" : ""}`} />
+              <span className="text-xs font-medium">{section.label}</span>
             </button>
           ))}
+        </nav>
+
+        {/* מובייל תפריט */}
+        <div className="block md:hidden mb-3">
+          <AdminMobileMenu
+            activeTab={activeTab}
+            onTabChange={(tab) => setActiveTab(tab)}
+          />
         </div>
 
-        <AnimatePresence>
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-colors"
-          >
-            {activeTab === 'dashboard'     && <AdminDashboard />}
-            {activeTab === 'courses'       && <InstitutionsManagement />}
-            {activeTab === 'semesters'     && <SemesterManagement />}
-            {activeTab === 'course-groups' && <CourseGroupsManagement />}
-            {activeTab === 'exams'         && <ExamsManagement />}
-            {activeTab === 'collaboration' && <CollaborationManagement />}
-            {activeTab === 'messages'      && <MessagesManagement />}
-            {activeTab === 'users'         && <UsersManagement />}
-            {activeTab === 'tutors'        && <TutorsManagement />}
-            {activeTab === 'tips'          && <TipsManagement />}
-            {activeTab === 'sponsored'     && <SponsoredContentManagement />}
-            {activeTab === 'store'         && <StoreManagement />}
-            {activeTab === 'reports'       && <UserReportsManagement />}
-          </motion.div>
-        </AnimatePresence>
+        {/* תוכן הטאב */}
+        <main className="flex-1 w-full max-w-7xl mx-auto py-8 px-2 md:px-6">
+          <div className="rounded-3xl shadow-2xl bg-white/95 dark:bg-gray-900/90 p-4 md:p-8 min-h-[55vh] transition-all overflow-x-auto border border-blue-100 dark:border-blue-900/60">
+            {adminSections.find(section => section.id === activeTab)?.component}
+          </div>
+        </main>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 };
 

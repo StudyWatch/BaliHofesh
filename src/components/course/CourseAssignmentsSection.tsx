@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { BookOpen, Calendar as CalendarIcon, Edit, Trash2, Plus, MoreVertical } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/App';
+import { useAuth } from '@/contexts/AuthProvider';
 import { format } from 'date-fns';
 
 const mamanNumbers = ['11', '12', '13', '14', '15', '16', '17', '18'];

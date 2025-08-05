@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { anonSupabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Tutor {
   id: string;
   name: string;
-  subjects: string[]; // ✅ קוד ישן
-  courses: string[];  // ✅ מזהי קורסים ישנים
+  subjects?: string[]; // ← הפך לאופציונלי כדי למנוע בעיית טיפוס
+  courses: string[];
   rating: number;
   reviews_count: number;
   hourly_rate: number;
@@ -35,7 +35,7 @@ export const useTutors = () => {
   return useQuery({
     queryKey: ['tutors'],
     queryFn: async () => {
-      const { data, error } = await anonSupabase
+      const { data, error } = await supabase
         .from('tutors')
         .select(`
           *,
@@ -50,7 +50,9 @@ export const useTutors = () => {
         .order('rating', { ascending: false });
 
       if (error) throw error;
-      return data as Tutor[];
+
+      // טיפוס בטוח
+      return (data ?? []) as Tutor[];
     }
   });
 };

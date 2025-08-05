@@ -14,24 +14,12 @@ import {
   Users,
   UserCheck,
   UsersRound,
-  Mail
+  Mail,
+  Bell,
+  Shield,
+  BarChartBig
 } from 'lucide-react';
-
-// הגדירו את הטיפוס הזהה בדיוק למה שמופיע ב־Admin.tsx
-type AdminTab =
-  | 'dashboard'
-  | 'courses'
-  | 'semesters'
-  | 'course-groups'
-  | 'exams'
-  | 'collaboration'
-  | 'messages'
-  | 'users'
-  | 'tutors'
-  | 'tips'
-  | 'sponsored'
-  | 'store'
-  | 'reports';
+import { AdminTab } from '@/types/admin'; // ←←←
 
 interface AdminMobileMenuProps {
   activeTab: AdminTab;
@@ -39,19 +27,23 @@ interface AdminMobileMenuProps {
 }
 
 const adminSections: { id: AdminTab; icon: React.ElementType; label: string }[] = [
-  { id: 'dashboard', icon: BarChart3, label: 'לוח בקרה' },
-  { id: 'courses', icon: BookOpen, label: 'ניהול קורסים' },
+  { id: 'dashboard', icon: BarChart3, label: 'לוח בקרה ראשי' },
+  { id: 'analytics', icon: BarChartBig, label: 'סטטיסטיקות ודירוגים' },
+  { id: 'courses', icon: BookOpen, label: 'קורסים' },
   { id: 'semesters', icon: Calendar, label: 'סמסטרים' },
   { id: 'course-groups', icon: UsersRound, label: 'קבוצות קורסים' },
   { id: 'exams', icon: Calendar, label: 'בחינות' },
-  { id: 'collaboration', icon: UserCheck, label: 'שיתוף פעולה' },
-  { id: 'messages', icon: Mail, label: 'הודעות' },
+  { id: 'collaboration', icon: UserCheck, label: 'שיתופי פעולה' },
+  { id: 'messages', icon: Mail, label: 'הודעות פרטיות' },
   { id: 'users', icon: Users, label: 'משתמשים' },
-  { id: 'tutors', icon: GraduationCap, label: 'מורים' },
+  { id: 'tutors', icon: GraduationCap, label: 'מורים פרטיים' },
   { id: 'tips', icon: Lightbulb, label: 'טיפים' },
-  { id: 'sponsored', icon: Megaphone, label: 'פרסום' },
+  { id: 'sponsored', icon: Megaphone, label: 'פרסום/תוכן ממומן' },
   { id: 'store', icon: ShoppingCart, label: 'החנות' },
-  { id: 'reports', icon: MessageSquare, label: 'פניות' },
+  { id: 'reports', icon: MessageSquare, label: 'פניות/דיווחים' },
+  { id: 'notifications', icon: Bell, label: 'התראות מערכת' },
+  { id: 'logs', icon: Shield, label: 'לוגים ובקרה' },
+  { id: 'permissions', icon: Shield, label: 'הרשאות ותפקידים' },
 ];
 
 const AdminMobileMenu = ({ activeTab, onTabChange }: AdminMobileMenuProps) => {
@@ -72,21 +64,21 @@ const AdminMobileMenu = ({ activeTab, onTabChange }: AdminMobileMenuProps) => {
         </SheetTrigger>
         <SheetContent side="right" className="w-[300px]">
           <SheetHeader>
-            <SheetTitle className="text-right">תפריט ניהול</SheetTitle>
+            <SheetTitle className="text-right">תפריט ניהול מתקדם</SheetTitle>
           </SheetHeader>
           <div className="mt-6 space-y-2">
             {adminSections.map((section) => (
               <button
                 key={section.id}
                 onClick={() => handleTabChange(section.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg text-right transition-colors ${
+                className={`w-full flex items-center gap-3 p-3 rounded-lg text-right transition-colors font-medium ${
                   activeTab === section.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-gray-100 text-gray-700'
+                    ? 'bg-gradient-to-l from-blue-700 to-purple-600 text-white shadow'
+                    : 'hover:bg-blue-50 text-gray-700'
                 }`}
               >
                 <section.icon className="w-5 h-5" />
-                <span className="font-medium">{section.label}</span>
+                <span>{section.label}</span>
               </button>
             ))}
           </div>

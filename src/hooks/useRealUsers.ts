@@ -8,13 +8,13 @@ export interface RealUser {
   id: string;
   name?: string | null;
   email?: string | null;
-  role?: 'user' | 'admin' | null;
+  role: 'user' | 'admin' | 'tutor'; // 👈 הוספנו tutor
   avatar_url?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// 📦 שליפה של כל המשתמשים (admins + users)
+// 📦 שליפה של כל המשתמשים (admin | user | tutor)
 export const useRealUsers = () => {
   return useQuery<RealUser[]>({
     queryKey: ['real-users'],
@@ -33,17 +33,23 @@ export const useRealUsers = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data ?? [];
-    }
+
+      const allowedRoles = ['user', 'admin', 'tutor'];
+
+      return (data ?? []).map((user) => ({
+        ...user,
+        role: allowedRoles.includes(user.role) ? user.role : 'user',
+      })) as RealUser[];
+    },
   });
 };
 
-// 🔧 עדכון תפקיד (user <-> admin)
+// 🔧 עדכון תפקיד (user <-> admin <-> tutor)
 export const useUpdateUserRole = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: 'user' | 'admin' }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: 'user' | 'admin' | 'tutor' }) => {
       const { error } = await supabase
         .from('profiles')
         .update({ role })

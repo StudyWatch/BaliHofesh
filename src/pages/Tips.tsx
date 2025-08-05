@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -7,222 +6,253 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowRight, ArrowLeft, Lightbulb, Crown, BookOpen, Star } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Lightbulb, Crown, BookOpen, Star, Filter } from 'lucide-react';
 import TipSubmissionForm from '@/components/forms/TipSubmissionForm';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+
+// --- צבעים לקטגוריות (ל־Night Mode)
+const categoryNightColors: Record<string, string> = {
+  לימודים: 'bg-gradient-to-r from-purple-700 to-purple-500 text-purple-100 border-purple-600 shadow-purple',
+  מבחנים: 'bg-gradient-to-r from-blue-800 to-blue-500 text-blue-100 border-blue-600 shadow-blue',
+  טיפים: 'bg-gradient-to-r from-yellow-500 to-orange-400 text-yellow-100 border-yellow-500 shadow-yellow',
+  קריירה: 'bg-gradient-to-r from-green-700 to-green-400 text-green-100 border-green-600 shadow-green',
+  כללי: 'bg-gradient-to-r from-zinc-700 to-zinc-500 text-zinc-100 border-zinc-600 shadow-zinc',
+};
 
 const Tips = () => {
   const navigate = useNavigate();
-  const { t, dir } = useLanguage();
+  const { dir } = useLanguage();
   const { data: tips = [], isLoading } = useTips();
   const [selectedTip, setSelectedTip] = useState<any>(null);
   const [showTipForm, setShowTipForm] = useState(false);
 
+  // --- סינון קטגוריות
+  const categories = Array.from(new Set(tips.map(t => t.category || 'כללי')));
+  const [filter, setFilter] = useState('כל הקטגוריות');
+  const tipsToShow = filter === 'כל הקטגוריות' ? tips : tips.filter(t => t.category === filter);
+
   return (
-    <>
-      <div 
-        className="min-h-screen relative overflow-hidden" 
-        dir={dir}
-        style={{
-          background: `
-            linear-gradient(-45deg, #ff9a56, #ffad56, #ffc56b, #ffd54f, #fff176, #aed581),
-            linear-gradient(45deg, rgba(255, 154, 86, 0.1), rgba(255, 173, 86, 0.1), rgba(255, 197, 107, 0.1))
-          `,
-          backgroundSize: '400% 400%, 100% 100%',
-          animation: 'gradientShift 12s ease infinite'
-        }}
-      >
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/6 right-1/6 w-40 h-40 bg-yellow-200/20 rounded-full animate-pulse" style={{ animationDelay: '0s', animationDuration: '4s' }}></div>
-          <div className="absolute bottom-1/4 left-1/6 w-28 h-28 bg-orange-200/20 rounded-full animate-pulse" style={{ animationDelay: '2s', animationDuration: '3s' }}></div>
-          <div className="absolute top-1/2 right-1/2 w-20 h-20 bg-red-200/20 rounded-full animate-pulse" style={{ animationDelay: '1s', animationDuration: '5s' }}></div>
-        </div>
-
-        {/* Header */}
-        <div className="bg-white/90 backdrop-blur-md border-b relative z-10">
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex items-center gap-4 mb-4">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/')}
-                className="flex items-center gap-2"
-              >
-                {dir === 'rtl' ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-                חזור לדף הבית
-              </Button>
-            </div>
-            
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                <span className="bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent">
-                  איך לעבור את זה בשלום ✨
-                </span>
-              </h1>
-              <p className="text-xl text-gray-700 max-w-2xl mx-auto">
-                טיפים, טריקים ואסטרטגיות להצלחה בלימודים ובבחינות
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="container mx-auto px-4 py-8 relative z-10">
-          {/* Loading State */}
-          {isLoading && (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">טוען טיפים...</p>
-            </div>
-          )}
-
-          {/* Tips Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tips.map((tip, index) => (
-              <Card 
-                key={tip.id} 
-                className={`hover:shadow-xl transition-all duration-300 cursor-pointer animate-fade-in ${
-                  tip.isSponsored 
-                    ? 'bg-gradient-to-br from-yellow-100 to-orange-100 border-2 border-yellow-300' 
-                    : 'bg-white/80 backdrop-blur-sm'
-                }`}
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        tip.isSponsored ? 'bg-yellow-500' : 'bg-blue-500'
-                      }`}>
-                        {tip.isSponsored ? (
-                          <Crown className="w-4 h-4 text-white" />
-                        ) : (
-                          <Lightbulb className="w-4 h-4 text-white" />
-                        )}
-                      </div>
-                      <CardTitle className="text-lg">
-                        {tip.title}
-                      </CardTitle>
-                    </div>
-                    {tip.isSponsored && (
-                      <Badge className="bg-yellow-500 text-white">
-                        ممومן
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                
-                <CardContent>
-                  <p className="text-gray-700 line-clamp-3 mb-4">
-                    {tip.content}
-                  </p>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Star className="w-4 h-4 text-yellow-500" />
-                      <span className="text-sm text-gray-600">
-                        דירוג: {tip.rating}/5
-                      </span>
-                    </div>
-                    
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setSelectedTip(tip)}
-                          className="hover:bg-blue-50"
-                        >
-                          קרא עוד
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-gray-50">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            {tip.isSponsored ? (
-                              <Crown className="w-5 h-5 text-yellow-500" />
-                            ) : (
-                              <Lightbulb className="w-5 h-5 text-blue-500" />
-                            )}
-                            {tip.title}
-                            {tip.isSponsored && (
-                              <Badge className="bg-yellow-500 text-white mr-2">
-                                ממומן
-                              </Badge>
-                            )}
-                          </DialogTitle>
-                        </DialogHeader>
-                        <div className="mt-4">
-                          <div className="prose max-w-none" dir={dir}>
-                            <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                              {tip.content}
-                            </div>
-                          </div>
-                          
-                          <div className="mt-6 pt-4 border-t border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Star className="w-4 h-4 text-yellow-500" />
-                                <span className="text-sm text-gray-600">
-                                  דירוג: {tip.rating}/5
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-2 text-sm text-gray-500">
-                                <BookOpen className="w-4 h-4" />
-                                <span>קטגוריה: {tip.category}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {tips.length === 0 && !isLoading && (
-            <Card className="p-8 text-center bg-white/80 backdrop-blur-sm">
-              <Lightbulb className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">אין טיפים זמינים</h3>
-              <p className="text-gray-600">חזור מאוחר יותר לטיפים חדשים ומועילים</p>
-            </Card>
-          )}
-
-          {/* CTA Section */}
-          <Card className="mt-12 bg-gradient-to-r from-blue-500 to-purple-500 text-white overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"></div>
-            <CardContent className="p-8 text-center relative z-10">
-              <h2 className="text-2xl font-bold mb-4">יש לך טיפ שיכול לעזור לאחרים?</h2>
-              <p className="text-lg mb-6 opacity-90">
-                שתף את הטיפים שלך וקבל הכרה מקהילת הסטודנטים
-              </p>
-              <Button 
-                size="lg" 
-                variant="secondary" 
-                className="bg-white text-blue-600 hover:bg-gray-100"
-                onClick={() => setShowTipForm(true)}
-              >
-                שתף טיפ חדש
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden font-assistant bg-gradient-to-br from-[#151628] via-[#191d2b] to-[#181921] dark" dir={dir}>
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        {/* רקעים דינמיים ו-Neon Blobs */}
+        <div className="absolute top-32 left-8 w-60 h-60 rounded-full bg-gradient-to-br from-blue-700 via-violet-600 to-purple-600 opacity-30 blur-3xl animate-blob"></div>
+        <div className="absolute bottom-24 right-10 w-52 h-52 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 opacity-20 blur-3xl animate-blob animation-delay-3000"></div>
+        <div className="absolute top-1/2 left-1/2 w-36 h-36 rounded-full bg-gradient-to-br from-fuchsia-600 to-pink-400 opacity-25 blur-2xl animate-blob animation-delay-1000"></div>
         <style>{`
-          @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
+          @keyframes blob { 0%,100%{transform:scale(1) translate(0,0);} 50%{transform:scale(1.12) translate(30px,20px);} }
+          .animate-blob { animation: blob 14s infinite cubic-bezier(.8,0,.2,1); }
+          .animation-delay-1000 { animation-delay: 1s; }
+          .animation-delay-3000 { animation-delay: 3s; }
         `}</style>
       </div>
 
-      <TipSubmissionForm 
-        isOpen={showTipForm} 
-        onClose={() => setShowTipForm(false)} 
-      />
-    </>
+      <Header />
+
+      <section className="relative z-10">
+        <div className="container mx-auto px-4 pt-8 pb-3">
+          <div className="flex items-center gap-4 mb-4">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2"
+            >
+              {dir === 'rtl' ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
+              חזור לדף הבית
+            </Button>
+          </div>
+          <div className="mx-auto text-center max-w-2xl rounded-3xl
+            bg-gradient-to-br from-[#241650dd] via-[#2b1b5fd6] to-[#41208ae0]
+            shadow-[0_0_36px_4px_#613fff44,0_6px_32px_0_#2a1c4d50]
+            py-8 px-7 mb-2 backdrop-blur-xl border border-violet-800/20">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Lightbulb className="w-7 h-7 text-yellow-400 drop-shadow-neon" />
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-600 bg-clip-text text-transparent drop-shadow-neon">
+                טיפים חכמים להצלחה ✨
+              </h1>
+            </div>
+            <p className="text-base md:text-lg text-violet-100">
+              רעיונות, כלים ותובנות שיעזרו לך לצלוח את הלימודים <strong className="font-semibold text-yellow-300">בדרך חכמה</strong> ונעימה.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <main className="flex-1 container mx-auto px-4 pb-14 pt-0 relative z-10">
+        {/* פילטר קטגוריה */}
+        <div className="flex items-center gap-3 mt-3 mb-7">
+          <Filter className="w-5 h-5 text-zinc-400" />
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="rounded-lg px-3 py-1 border border-zinc-700 bg-[#232341] text-violet-100 shadow focus:ring-2 focus:ring-violet-400 font-bold"
+            style={{ minWidth: 120 }}
+          >
+            <option value="כל הקטגוריות">כל הקטגוריות</option>
+            {categories.map(cat =>
+              <option key={cat} value={cat}>{cat}</option>
+            )}
+          </select>
+        </div>
+
+        {/* מצב טעינה */}
+        {isLoading && (
+          <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400 mx-auto"></div>
+            <p className="mt-4 text-zinc-300 font-bold">טוען טיפים...</p>
+          </div>
+        )}
+
+        {/* Grid טיפים */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {tipsToShow.map((tip, index) => (
+            <Card
+              key={tip.id}
+              className={`
+                group rounded-2xl 
+                shadow-[0_0_16px_3px_#4e3dbe50,0_4px_24px_#18193d99]
+                border border-violet-800/40
+                bg-gradient-to-br from-[#24214aee] via-[#23234aee] to-[#28245cfa]
+                relative overflow-hidden transition-all duration-200 cursor-pointer
+                hover:scale-[1.025] hover:-translate-y-1 hover:z-10
+                hover:shadow-[0_0_46px_8px_#6b48ff7a,0_6px_36px_#332083dd]
+                animate-fade-in
+              `}
+              style={{ animationDelay: `${index * 55}ms` }}
+            >
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-0 left-0 w-full h-[6px] bg-gradient-to-r from-[#7c5aff] via-[#e3a90d77] to-[#0ea5e9aa] opacity-40 blur-xl"></div>
+              </div>
+              <CardHeader className="pt-7 pb-3">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`
+                      w-9 h-9 rounded-full flex items-center justify-center shadow-lg border-2
+                      ${tip.isSponsored
+                        ? 'bg-yellow-400 border-yellow-300'
+                        : 'bg-blue-600 border-blue-400'
+                      }
+                      drop-shadow-neon
+                    `}>
+                      {tip.isSponsored ? (
+                        <Crown className="w-5 h-5 text-white drop-shadow-neon" />
+                      ) : (
+                        <Lightbulb className="w-5 h-5 text-yellow-200 drop-shadow-neon" />
+                      )}
+                    </div>
+                    <CardTitle className="text-lg font-bold truncate text-violet-100 drop-shadow-neon">{tip.title}</CardTitle>
+                  </div>
+                  {/* קטגוריה */}
+                  <Badge className={`px-2 py-0.5 text-xs rounded-full border ${categoryNightColors[tip.category] || categoryNightColors['כללי']} drop-shadow-neon`}>
+                    {tip.category || 'כללי'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pb-7 pt-0">
+                <div className="text-violet-100/90 line-clamp-4 mb-4 font-medium">{tip.content}</div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-1">
+                    <Star className="w-4 h-4 text-yellow-400 drop-shadow-neon" />
+                    <span className="text-xs text-zinc-300 font-bold">דירוג: {tip.rating}/5</span>
+                  </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTip(tip)}
+                        className="group-hover:bg-[#282961] group-hover:border-violet-400 font-bold px-4 py-1 rounded-full shadow drop-shadow-neon text-violet-200 border-violet-500 border-2"
+                      >
+                        קרא עוד
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl rounded-2xl bg-[#1b1835f8] shadow-2xl border border-violet-700">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-lg text-violet-100">
+                          {tip.isSponsored ? (
+                            <Crown className="w-5 h-5 text-yellow-400" />
+                          ) : (
+                            <Lightbulb className="w-5 h-5 text-yellow-300" />
+                          )}
+                          {tip.title}
+                          {tip.isSponsored && (
+                            <Badge className="bg-yellow-500 text-white ml-2 rounded-full drop-shadow-neon">ממומן</Badge>
+                          )}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="mt-5">
+                        <div className="whitespace-pre-wrap text-violet-100/90 leading-relaxed text-base">
+                          {tip.content}
+                        </div>
+                        <div className="mt-7 pt-4 border-t border-violet-800">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Star className="w-4 h-4 text-yellow-400" />
+                              <span className="text-sm text-violet-100 font-bold">
+                                דירוג: {tip.rating}/5
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-violet-200">
+                              <BookOpen className="w-4 h-4" />
+                              <span>קטגוריה: {tip.category}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {tipsToShow.length === 0 && !isLoading && (
+          <Card className="p-10 text-center bg-gradient-to-br from-[#232245e6] via-[#3e3666e8] to-[#262647] shadow-2xl rounded-2xl border border-violet-800/40 mt-10">
+            <Lightbulb className="w-16 h-16 mx-auto text-yellow-400 mb-4 drop-shadow-neon" />
+            <h3 className="text-xl font-bold mb-2 text-violet-100 drop-shadow-neon">אין טיפים זמינים</h3>
+            <p className="text-zinc-300">חזור מאוחר יותר לטיפים חדשים ומועילים</p>
+          </Card>
+        )}
+
+        {/* CTA - שתף טיפ */}
+        <Card className="mt-16 bg-gradient-to-r from-violet-700 via-purple-500 to-indigo-700 text-white overflow-hidden rounded-xl shadow-xl relative border-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/20 to-violet-700/30 pointer-events-none"></div>
+          <CardContent className="p-11 text-center relative z-10">
+            <h2 className="text-xl font-bold mb-3 text-white drop-shadow-neon">יש לך טיפ שיכול לעזור לאחרים?</h2>
+            <p className="text-base mb-6 opacity-95">
+              שתף את הטיפים שלך וקבל הכרה מקהילת הסטודנטים
+            </p>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="bg-white text-indigo-700 hover:bg-violet-100 rounded-xl font-bold shadow-lg px-7 py-2.5 text-base border-2 border-violet-400 hover:scale-105 transition drop-shadow-neon"
+              onClick={() => setShowTipForm(true)}
+            >
+              שתף טיפ חדש
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+
+      <TipSubmissionForm isOpen={showTipForm} onClose={() => setShowTipForm(false)} />
+      <Footer />
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap');
+        .font-assistant { font-family: 'Assistant', Arial, sans-serif !important; }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(26px);}
+          to { opacity: 1; transform: translateY(0);}
+        }
+        .animate-fade-in {
+          animation: fade-in 0.5s cubic-bezier(.38,1.15,.6,1.01) forwards;
+        }
+        .drop-shadow-neon {
+          filter: drop-shadow(0 0 7px #8f7cff) drop-shadow(0 0 4px #0003);
+        }
+      `}</style>
+    </div>
   );
 };
 

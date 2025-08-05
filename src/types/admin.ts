@@ -1,0 +1,18 @@
+export type AdminTab =
+  | 'dashboard'
+  | 'analytics'
+  | 'courses'
+  | 'semesters'
+  | 'course-groups'
+  | 'exams'
+  | 'collaboration'
+  | 'messages'
+  | 'users'
+  | 'tutors'
+  | 'tips'
+  | 'sponsored'
+  | 'store'
+  | 'reports'
+  | 'notifications'
+  | 'logs'
+  | 'permissions';
