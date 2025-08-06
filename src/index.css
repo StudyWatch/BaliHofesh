@@ -585,3 +585,9 @@ body.dark ::-webkit-scrollbar-thumb:hover {
     border-radius: 1.12rem !important;
   }
 }
+header.Header {
+  border-radius: 0 !important;
+}
+.dark header.Header {
+  border-radius: 0 !important;
+}
