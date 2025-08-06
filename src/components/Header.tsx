@@ -29,7 +29,8 @@ import {
   Moon,
   Sun,
   Mail,
-  HelpCircle
+  HelpCircle,
+  ShieldCheck
 } from 'lucide-react';
 import AuthDialog from '@/components/auth/AuthDialog';
 import MobileMenu from './MobileMenu';
@@ -40,10 +41,12 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { dir, language, setLanguage } = useLanguage();
   const { user, loading: authLoading, signOut } = useAuth();
-  const { data: profile, isLoading: profileLoading } = useUserProfile();
-  const { data: notifications = [], isLoading: notificationsLoading } = useSystemNotifications();
+  const { data: profile } = useUserProfile();
+  const { data: notifications = [] } = useSystemNotifications();
   const unreadCount = notifications.filter(n => !n.is_read).length;
-  const isTutor = profile?.role === 'tutor' || profile?.role === 'admin' || profile?.is_tutor;
+  // הגנה טיפוסית
+  const isTutor = profile?.role === 'tutor' || profile?.role === 'admin' || (profile && 'is_tutor' in profile && (profile as any).is_tutor);
+  const isAdmin = profile?.role === 'admin';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showAuthDialog, setShowAuthDialog] = useState(false);
@@ -81,10 +84,40 @@ const Header: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // אלמנט טעינה אם authLoading (או במידת הצורך, profileLoading)
-  if (authLoading /* || profileLoading */) {
+  // --- תפריטי ניווט ---
+  const mainMenu: Array<{ href: string; label: string; icon: any }> = [
+    { href: '/', label: dir === 'rtl' ? 'דף הבית' : 'Home', icon: Home },
+    { href: '/tutors', label: dir === 'rtl' ? 'מורים פרטיים' : 'Tutors', icon: GraduationCap },
+    { href: '/tips', label: dir === 'rtl' ? 'טיפים' : 'Tips', icon: Lightbulb },
+    { href: '/store', label: dir === 'rtl' ? 'החנות' : 'Store', icon: ShoppingCart },
+  ];
+
+  // תפריט צד – דינאמי לפי מובייל/אדמין
+  const mobileMenu = [
+    ...mainMenu,
+    ...(isMobile ? [{
+      href: '/feedback',
+      label: dir === 'rtl' ? 'פנייה לצוות האתר' : 'Contact / Feedback',
+      icon: Mail
+    }] : []),
+    ...(isAdmin ? [{
+      href: '/admin',
+      label: dir === 'rtl' ? 'לוח אדמין' : 'Admin Dashboard',
+      icon: ShieldCheck
+    }] : []),
+  ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/courses?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  // טעינה
+  if (authLoading) {
     return (
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 rounded-none dark:rounded-none">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center min-w-0 select-none group">
@@ -101,34 +134,11 @@ const Header: React.FC = () => {
     );
   }
 
-  // תפריט עליון
-  const menuItems = [
-    { href: '/', label: dir === 'rtl' ? 'דף הבית' : 'Home', icon: Home },
-    { href: '/tutors', label: dir === 'rtl' ? 'מורים פרטיים' : 'Tutors', icon: GraduationCap },
-    { href: '/tips', label: dir === 'rtl' ? 'טיפים' : 'Tips', icon: Lightbulb },
-    { href: '/store', label: dir === 'rtl' ? 'החנות' : 'Store', icon: ShoppingCart },
-  ];
-  if (isMobile) {
-    menuItems.push({
-      href: '/feedback',
-      label: dir === 'rtl' ? 'פנייה לצוות האתר' : 'Contact / Feedback',
-      icon: Mail,
-      feedback: true
-    });
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/courses?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
-  };
-
   return (
     <header className="Header bg-white dark:bg-[#181f32] shadow-sm border-b border-gray-200 dark:border-[#232949] sticky top-0 z-40 transition-colors rounded-none dark:rounded-none">
       <div className="container mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between h-16">
-          {/* לוגו-טקסט דינמי */}
+          {/* לוגו */}
           <Link to="/" className="flex items-center min-w-0 select-none group" tabIndex={0}>
             <span
               className="bali-logo-dynamic px-4 py-2 rounded-2xl font-bold text-base xs:text-lg md:text-2xl tracking-tight text-white shadow-xl border-2 border-white/40 transition-all duration-400 group-hover:scale-105 group-hover:shadow-2xl cursor-pointer select-none"
@@ -144,19 +154,28 @@ const Header: React.FC = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center space-x-6 space-x-reverse">
-            {menuItems
-              .filter(item => !item.feedback)
-              .map((item) => (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className="flex items-center space-x-1 space-x-reverse text-gray-700 dark:text-gray-100 hover:text-blue-700 dark:hover:text-indigo-300 transition-colors duration-200 px-3 py-2 rounded-lg relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 hover:bg-blue-50 dark:hover:bg-[#222844] after:content-[''] after:absolute after:left-2 after:right-2 after:bottom-1 after:h-1 after:rounded-full after:opacity-0 group-hover:after:opacity-70 after:transition-all after:duration-300 after:bg-gradient-to-r after:from-blue-300 after:to-purple-400"
-                  tabIndex={0}
-                >
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
+            {mainMenu.map((item) => (
+              <Link
+                key={item.href}
+                to={item.href}
+                className="flex items-center space-x-1 space-x-reverse text-gray-700 dark:text-gray-100 hover:text-blue-700 dark:hover:text-indigo-300 transition-colors duration-200 px-3 py-2 rounded-lg relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 hover:bg-blue-50 dark:hover:bg-[#222844] after:content-[''] after:absolute after:left-2 after:right-2 after:bottom-1 after:h-1 after:rounded-full after:opacity-0 group-hover:after:opacity-70 after:transition-all after:duration-300 after:bg-gradient-to-r after:from-blue-300 after:to-purple-400"
+                tabIndex={0}
+              >
+                <item.icon className="w-4 h-4" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-1 space-x-reverse px-3 py-2 rounded-lg text-purple-700 dark:text-pink-300 font-bold hover:bg-purple-100 dark:hover:bg-purple-900 transition"
+                onClick={() => navigate('/admin')}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>{dir === 'rtl' ? 'לוח אדמין' : 'Admin Dashboard'}</span>
+              </Button>
+            )}
           </nav>
 
           {/* Search Bar */}
@@ -180,7 +199,6 @@ const Header: React.FC = () => {
 
           {/* Right Section */}
           <div className="flex items-center space-x-1 xs:space-x-2 sm:space-x-4 space-x-reverse">
-
             {/* כפתור פנייה לצוות – דסקטופ בלבד */}
             <div className="hidden lg:flex items-center gap-2 ml-2">
               <Link
@@ -259,14 +277,14 @@ const Header: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center gap-2 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-[#21294e] hover:text-blue-700 dark:hover:text-indigo-300 transition"
+                    className="flex items-center gap-2 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-[#23294e] hover:text-blue-700 dark:hover:text-indigo-300 transition"
                     aria-label="פרופיל משתמש"
                   >
                     <User className="w-5 h-5" />
                     <ChevronDown className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuContent align="end" className="w-52 bg-white dark:bg-[#23294e] text-gray-900 dark:text-pink-100 border dark:border-[#282b3b] shadow-xl">
                   <DropdownMenuItem onClick={() => navigate('/profile')}>
                     <User className="w-4 h-4 mr-2" />
                     <span>פרופיל</span>
@@ -275,6 +293,12 @@ const Header: React.FC = () => {
                     <DropdownMenuItem onClick={() => navigate('/tutor/dashboard')}>
                       <GraduationCap className="w-4 h-4 mr-2" />
                       <span>אזור מורה</span>
+                    </DropdownMenuItem>
+                  )}
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                      <ShieldCheck className="w-4 h-4 mr-2 text-purple-600 dark:text-pink-300" />
+                      <span className="font-bold">{dir === 'rtl' ? 'לוח אדמין' : 'Admin Dashboard'}</span>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={() => setShowNotifications(true)}>
@@ -326,16 +350,22 @@ const Header: React.FC = () => {
       <MobileMenu
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
-        menuItems={menuItems}
+        menuItems={mobileMenu}
       />
 
       {/* Auth Dialog */}
-      <AuthDialog isOpen={showAuthDialog} onClose={() => setShowAuthDialog(false)} />
+      <AuthDialog
+        isOpen={showAuthDialog}
+        onClose={() => setShowAuthDialog(false)}
+      />
 
       {/* Notifications Dialog */}
       <Suspense fallback={null}>
         {showNotifications && (
-          <NotificationSystem isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
+          <NotificationSystem
+            isOpen={showNotifications}
+            onClose={() => setShowNotifications(false)}
+          />
         )}
       </Suspense>
 
@@ -373,6 +403,69 @@ const Header: React.FC = () => {
              min-width: 100px;
              min-height: 36px;
            }
+        }
+        /* עיצוב משופר ל-Dropdown ול-MobileMenu במצב לילה */
+        .dark .shadcn-dropdown-menu__content,
+        .dark .DropdownMenuContent,
+        .dark .dropdown-menu__content,
+        .dark .DropdownMenuItem {
+          background: #23294e !important;
+          color: #fbeaff !important;
+        }
+        .DropdownMenuItem, .dropdown-menu__item {
+          transition: background 0.16s, color 0.16s;
+        }
+        .DropdownMenuItem:focus, .DropdownMenuItem:active,
+        .dropdown-menu__item:focus, .dropdown-menu__item:active {
+          background: #372a4e !important;
+          color: #ff90e7 !important;
+        }
+        .DropdownMenuSeparator, .dropdown-menu__separator {
+          background: #d7ccf6 !important;
+          height: 1px;
+          opacity: 0.4;
+        }
+        /* נראות טובה בלילה בתפריטים */
+        .dark .DropdownMenuItem, .dark .dropdown-menu__item {
+          color: #fff !important;
+        }
+        .dark .DropdownMenuItem:hover, .dark .dropdown-menu__item:hover {
+          color: #f772d2 !important;
+          background: #30284a !important;
+        }
+        /* ללא פינות עגולות ל-Header ולתפריטים במצב לילה */
+        .Header, .dark .Header {
+          border-radius: 0 !important;
+        }
+        /* תפריט צד במובייל */
+        .MobileMenu, .dark .MobileMenu {
+          background: #fff !important;
+        }
+        .dark .MobileMenu {
+          background: linear-gradient(180deg,#231F36 0%,#282046 80%,#35215b 100%) !important;
+          color: #fff !important;
+          border-radius: 0 !important;
+          box-shadow: 0 10px 30px #120a22cc;
+        }
+        .dark .MobileMenu a, .dark .MobileMenu button, .dark .MobileMenu span {
+          color: #ffe5fc !important;
+          font-weight: 600;
+          text-shadow: 0 1px 6px #24134244;
+        }
+        .dark .MobileMenu svg {
+          color: #b58bfd !important;
+          filter: drop-shadow(0 1px 3px #44186066);
+        }
+        .dark .MobileMenu hr {
+          border-color: #fff3;
+        }
+        /* פריט פעיל/נבחר */
+        .dark .MobileMenu .active,
+        .dark .MobileMenu [aria-current="page"] {
+          background: #35215b !important;
+          color: #ffcdfb !important;
+          border-radius: 12px !important;
+          box-shadow: 0 2px 8px #120a2244;
         }
       `}</style>
     </header>

@@ -1,4 +1,3 @@
-// src/components/admin/StoreManagement.tsx
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -21,9 +20,9 @@ import {
   BadgePercent, Star, DollarSign, Heart, TrendingUp, Gift,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
-// הגדרה אחידה של הטיפוס
+// טיפוס מוצר
 interface Product {
   id: string;
   name_he: string;
@@ -48,13 +47,13 @@ interface Product {
   priority?: boolean;
 }
 
+// קומפוננטת ניהול חנות
 const StoreManagement = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showDescription, setShowDescription] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // שליפת מוצרים
@@ -71,61 +70,84 @@ const StoreManagement = () => {
     },
   });
 
-  // קטגוריות מסוננות (בלי ריקים)
+  // קטגוריות ייחודיות
   const uniqueCategories = Array.from(
     new Set(products.map((p) => (p.category || '').trim()).filter(Boolean))
   );
 
-  // יצירה/עדכון מוצר
+  // הוספה/עדכון מוצר
   const upsertProduct = useMutation({
     mutationFn: async (productData: Partial<Product>) => {
+      // תיקון: ודא שדות חובה (type safety)
+      if (!productData.name_he || !productData.name_en || !productData.price || !productData.category) {
+        throw new Error('כל שדות החובה חייבים להיות מלאים!');
+      }
       if (editingProduct) {
+        // עדכון
         const { error } = await supabase
           .from('products')
           .update(productData)
           .eq('id', editingProduct.id);
         if (error) throw error;
       } else {
+        // יצירה – שלח אובייקט מלא, לא partial!
+        const toInsert = {
+          name_he: productData.name_he,
+          name_en: productData.name_en,
+          description_he: productData.description_he ?? '',
+          description_en: productData.description_en ?? '',
+          price: Number(productData.price),
+          category: productData.category,
+          link: productData.link ?? '',
+          image_url: productData.image_url ?? '',
+          is_exclusive: productData.is_exclusive ?? false,
+          is_popular: productData.is_popular ?? false,
+          is_new: productData.is_new ?? false,
+          is_subsidized: productData.is_subsidized ?? false,
+          is_monetizable: productData.is_monetizable ?? false,
+          type: productData.type ?? '',
+          created_at: new Date().toISOString(),
+        };
         const { error } = await supabase
           .from('products')
-          .insert([productData]);
+          .insert([toInsert]);
         if (error) throw error;
       }
     },
     onSuccess: () => {
-      toast({ title: 'הצלחה', description: editingProduct ? 'המוצר עודכן!' : 'מוצר נוסף!' });
+      toast.success(editingProduct ? 'המוצר עודכן!' : 'מוצר נוסף!');
       setEditingProduct(null);
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (err: any) => {
-      toast({ title: 'שגיאה', description: err.message || 'פעולה נכשלה', variant: 'destructive' });
+      toast.error('שגיאה: ' + (err?.message || 'פעולה נכשלה'));
     },
   });
 
-  // מחיקת מוצר
+  // מחיקה
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: 'הצלחה', description: 'המוצר נמחק!' });
+      toast.success('המוצר נמחק!');
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
 
-  // ניקוי כל הפילטרים
+  // ניקוי פילטרים
   const clearFilters = () => {
     setSearchTerm('');
     setCategoryFilter('');
     setStatusFilter('');
   };
 
-  // סינון חכם
+  // סינון מתקדם
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
-      (product.name_he?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-      (product.name_en?.toLowerCase().includes(searchTerm.toLowerCase()) || '');
+      product.name_he?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.name_en?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !categoryFilter || (product.category && product.category.trim() === categoryFilter.trim());
     const matchesStatus = !statusFilter || (
       (statusFilter === 'available' && !product.is_exclusive) ||
@@ -134,13 +156,13 @@ const StoreManagement = () => {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // עיצוב דינאמי לבאדג׳ים
+  // תגים סטטוס מיוחדים
   const productBadges = (product: Product) => (
     <div className="flex flex-wrap gap-1 mt-1">
       {product.is_new && <Badge className="bg-green-100 text-green-800 flex items-center gap-1"><Star className="w-3 h-3" />חדש</Badge>}
       {product.is_popular && <Badge className="bg-pink-100 text-pink-700 flex items-center gap-1"><TrendingUp className="w-3 h-3" />פופולרי</Badge>}
       {product.is_subsidized && <Badge className="bg-purple-100 text-purple-700 flex items-center gap-1"><Gift className="w-3 h-3" />מסובסד</Badge>}
-      {product.is_monetizable && <Badge className="bg-yellow-100 text-yellow-700 flex items-center gap-1"><DollarSign className="w-3 h-3" />אפיק רווח</Badge>}
+      {product.is_monetizable && <Badge className="bg-yellow-100 text-yellow-700 flex items-center gap-1"><DollarSign className="w-3 h-3" />רווח</Badge>}
       {product.is_exclusive && <Badge className="bg-gray-200 text-gray-700">בלעדי</Badge>}
     </div>
   );
@@ -151,7 +173,7 @@ const StoreManagement = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2 text-2xl font-extrabold">
             <ShoppingCart className="w-8 h-8 text-blue-600" />
-            <span>ניהול החנות הסטודנטיאלית</span>
+            ניהול החנות הסטודנטיאלית
           </CardTitle>
           <Dialog open={!!editingProduct} onOpenChange={(v) => { if (!v) setEditingProduct(null); }}>
             <DialogTrigger asChild>
@@ -179,9 +201,8 @@ const StoreManagement = () => {
           </Dialog>
         </div>
       </CardHeader>
-
       <CardContent>
-        {/* Filter Section */}
+        {/* פילטרים */}
         <div className="mb-8 p-4 bg-white/80 rounded-2xl shadow flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-blue-400" />
@@ -239,8 +260,7 @@ const StoreManagement = () => {
             מציג <b>{filteredProducts.length}</b> מתוך <b>{products.length}</b> מוצרים
           </div>
         </div>
-
-        {/* טבלה */}
+        {/* טבלת מוצרים */}
         <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-lg bg-white/80">
           <Table>
             <TableHeader>
@@ -332,7 +352,7 @@ const StoreManagement = () => {
   );
 };
 
-// טופס הוספה/עריכה למוצר, מעוצב במיוחד
+// טופס עריכת מוצר
 const ProductForm = ({
   product,
   categories,
@@ -363,8 +383,8 @@ const ProductForm = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.category) {
-      alert('חובה לבחור קטגוריה!');
+    if (!formData.name_he || !formData.name_en || !formData.price || !formData.category) {
+      toast.error('חובה למלא שם מוצר בעברית, באנגלית, קטגוריה ומחיר!');
       return;
     }
     onSave(formData);

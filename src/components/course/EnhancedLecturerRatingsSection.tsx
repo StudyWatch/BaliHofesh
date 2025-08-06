@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, FC, FormEvent } from "react";
+import React, { useState, useEffect, useRef, useMemo, FC, FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Star, Users, Clock, Heart, Search, Filter, Plus, Pencil, Trash2, X, TrendingUp, LogIn,
@@ -27,7 +27,7 @@ import { useAuth } from '@/contexts/AuthProvider';
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
-// --- טיפוסים ועזר ---
+// טיפוסים
 interface Lecturer {
   id: string;
   name: string;
@@ -74,7 +74,7 @@ const PARAMS: Record<string, ParamInfo> = {
 const MODAL_BG = "bg-gradient-to-br from-amber-50 via-[#f7f6f4] to-white dark:from-zinc-900 dark:via-zinc-950 dark:to-amber-900";
 const MODAL_SHADOW = "shadow-2xl shadow-amber-100/30 dark:shadow-zinc-900/70";
 
-// --- כוכבים אינטראקטיביים RTL (גם לדירוג) ---
+// דירוג כוכבים
 const StarRating: FC<{
   rating: number;
   size?: "sm" | "md" | "lg";
@@ -83,9 +83,8 @@ const StarRating: FC<{
 }> = ({ rating, size = "md", interactive = false, onRate }) => {
   const dims = size === "lg" ? "w-8 h-8" : size === "sm" ? "w-4 h-4" : "w-6 h-6";
   const [hover, setHover] = useState<number | null>(null);
-
   return (
-    <div className="flex flex-row-reverse gap-0.5 items-center">
+    <div className="flex flex-row-reverse gap-0.5 items-center justify-center w-full">
       {[5, 4, 3, 2, 1].map((i) => (
         <button
           key={i}
@@ -99,11 +98,8 @@ const StarRating: FC<{
         >
           <Star
             className={
-              (hover !== null
-                ? i <= hover
-                : i <= Math.round(rating)
-              )
-                ? `${dims} fill-yellow-400 text-yellow-400 drop-shadow`
+              (hover !== null ? i <= hover : i <= Math.round(rating))
+                ? `${dims} fill-yellow-400 text-yellow-400 drop-shadow-sm transition`
                 : `${dims} text-gray-300 dark:text-gray-600`
             }
           />
@@ -113,7 +109,7 @@ const StarRating: FC<{
   );
 };
 
-// --- Top 3 כרטיס מלבני ורחב ---
+// כרטיס טופ 3
 const Top3LecturerCard: FC<{
   lecturer: Lecturer;
   rank: number;
@@ -129,46 +125,43 @@ const Top3LecturerCard: FC<{
     <div className={`
       relative flex flex-row items-center w-full
       bg-yellow-50 dark:bg-yellow-100/5 shadow-xl border-2 border-yellow-200 dark:border-yellow-700
-      rounded-2xl px-6 py-4 min-w-[260px] max-w-full
+      rounded-2xl px-4 py-4 min-w-[180px] max-w-full
       transition-all
     `}>
-      {/* עיגול דירוג */}
       <div className={`
-        absolute -top-5 -end-5 bg-yellow-400 text-white w-12 h-12 text-center text-xl font-extrabold rounded-full shadow-md ring-2 ring-yellow-300 dark:ring-yellow-700 flex items-center justify-center z-20
+        absolute -top-5 -end-5 bg-yellow-400 text-white w-10 h-10 text-center text-lg font-extrabold rounded-full shadow-md ring-2 ring-yellow-300 dark:ring-yellow-700 flex items-center justify-center z-20
       `}>
         {rank}
       </div>
-      {/* הכי מומלץ */}
       {rank === 1 && (
         <div className="
-          absolute top-3 end-16 text-yellow-600 text-base font-bold flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/70 px-4 py-1 rounded-full shadow-sm z-20
+          absolute top-3 end-14 text-yellow-600 text-sm font-bold flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/70 px-3 py-0.5 rounded-full shadow-sm z-20
         ">
           <TrendingUp className="w-5 h-5" />
           הכי מומלץ
         </div>
       )}
-      {/* פרטי מרצה */}
-      <div className="flex-1 flex flex-col md:flex-row md:items-center md:gap-6">
+      <div className="flex-1 flex flex-col md:flex-row md:items-center md:gap-5">
         {lecturer.avatar_url && (
           <img
             src={lecturer.avatar_url}
             alt={lecturer.name}
-            className="w-16 h-16 rounded-full border-2 border-yellow-200 shadow mb-3 md:mb-0 md:me-3"
+            className="w-14 h-14 rounded-full border-2 border-yellow-200 shadow mb-3 md:mb-0 md:me-3"
             loading="lazy"
           />
         )}
         <div>
-          <div className="text-xl font-extrabold text-gray-900 dark:text-yellow-100 mb-1 text-right">
+          <div className="text-lg font-extrabold text-gray-900 dark:text-yellow-100 mb-1 text-right">
             {lecturer.name}
           </div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-col items-center text-center gap-2 mb-2">
             <StarRating rating={lecturer.average_rating} />
-            <span className="text-lg font-bold text-gray-800 dark:text-yellow-200">
+            <span className="text-base font-bold text-gray-800 dark:text-yellow-200">
               {lecturer.average_rating.toFixed(1)}
             </span>
             <Badge
               variant="secondary"
-              className="text-sm px-3 py-0.5 bg-yellow-100 dark:bg-yellow-700/30 text-yellow-800 dark:text-yellow-100 font-semibold"
+              className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-700/30 text-yellow-800 dark:text-yellow-100 font-semibold"
             >
               {lecturer.reviews_count} ביקורות
             </Badge>
@@ -179,7 +172,7 @@ const Top3LecturerCard: FC<{
   </motion.div>
 );
 
-// --- כרטיס רגיל ---
+// כרטיס רגיל
 const LecturerCard: FC<{
   lecturer: Lecturer;
   onSelect: (id: string) => void;
@@ -194,21 +187,21 @@ const LecturerCard: FC<{
     <div className={`
       flex flex-row items-center w-full
       bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-800
-      rounded-2xl px-4 py-3 min-w-[180px] max-w-full shadow hover:shadow-lg transition
+      rounded-2xl px-3 py-2 min-w-[150px] max-w-full shadow hover:shadow-lg transition
     `}>
       {lecturer.avatar_url && (
         <img
           src={lecturer.avatar_url}
           alt={lecturer.name}
-          className="w-12 h-12 rounded-full border-2 border-yellow-200 shadow ms-4"
+          className="w-10 h-10 rounded-full border-2 border-yellow-200 shadow ms-3"
           loading="lazy"
         />
       )}
       <div className="flex flex-col flex-1">
-        <div className="text-lg font-bold text-gray-900 dark:text-yellow-100 mb-1">{lecturer.name}</div>
-        <div className="flex items-center gap-2">
+        <div className="text-base font-bold text-gray-900 dark:text-yellow-100 mb-1">{lecturer.name}</div>
+        <div className="flex flex-col items-center text-center gap-1">
           <StarRating rating={lecturer.average_rating} />
-          <span className="text-base font-semibold text-gray-800 dark:text-yellow-200">
+          <span className="text-sm font-semibold text-gray-800 dark:text-yellow-200">
             {lecturer.average_rating.toFixed(1)}
           </span>
           <Badge
@@ -223,7 +216,7 @@ const LecturerCard: FC<{
   </motion.div>
 );
 
-// --- Review Item ---
+// ReviewItem – כל הדירוגים והכוכבים במרכז
 const ReviewItem: FC<{
   review: Review;
   isOwn: boolean;
@@ -235,46 +228,48 @@ const ReviewItem: FC<{
     <motion.div
       className={`
         rounded-2xl bg-white dark:bg-zinc-900/80 shadow ring-1 ring-amber-100/40 dark:ring-zinc-800
-        flex flex-col gap-4 p-4 sm:p-5 relative
-        min-w-[170px] w-full max-w-full text-right
+        flex flex-col gap-3 p-3 sm:p-4 relative
+        min-w-[150px] w-full max-w-full
+        text-center items-center
       `}
       initial={{ opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 22 }}
       dir="rtl"
     >
-      <div className="flex flex-row justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <StarRating rating={review.rating} />
-          <span className="text-base text-gray-600 dark:text-yellow-200 font-bold">{review.rating}/5</span>
-        </div>
-        <span className="text-sm text-gray-400 dark:text-yellow-400">{date}</span>
+      <div className="flex flex-row justify-center items-center gap-2 w-full mb-1">
+        <StarRating rating={review.rating} />
+        <span className="text-sm text-gray-600 dark:text-yellow-200 font-bold">{review.rating}/5</span>
+        <span className="text-xs text-gray-400 dark:text-yellow-400">{date}</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-base">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 w-full">
         {Object.entries(PARAMS).map(([key, cfg]) => {
           const val = (review as any)[key];
           if (!val) return null;
           return (
-            <div key={key} className={`text-right rounded-xl p-2 ${cfg.bg}`}>
-              <cfg.icon className={`w-6 h-6 mx-auto mb-1 ${cfg.color}`} />
-              <div className="font-semibold">{cfg.label}</div>
-              <div className="font-bold text-base">{val}/5</div>
+            <div
+              key={key}
+              className={`flex flex-col items-center text-center justify-center rounded-xl p-3 ${cfg.bg} w-full mb-2`}
+            >
+              <cfg.icon className={`w-6 h-6 mb-1 ${cfg.color}`} />
+              <div className="font-semibold text-base">{cfg.label}</div>
+              <div className="font-bold text-base mt-1">{val}/5</div>
             </div>
           );
         })}
       </div>
       {review.comment && (
-        <blockquote className="text-base text-gray-700 dark:text-yellow-100 italic bg-amber-50/80 dark:bg-yellow-950/40 p-3 rounded-lg border-r-4 border-yellow-300 dark:border-yellow-600">
+        <blockquote className="text-base text-gray-700 dark:text-yellow-100 italic bg-amber-50/80 dark:bg-yellow-950/40 p-2 rounded-lg border-r-4 border-yellow-300 dark:border-yellow-600 w-full mt-2">
           “{review.comment}”
         </blockquote>
       )}
       {isOwn && (
-        <div className="flex justify-end gap-3 absolute top-5 left-5">
+        <div className="flex justify-end gap-2 absolute top-3 left-3">
           <Button size="icon" variant="ghost" onClick={() => onEdit(review)}>
-            <Pencil className="w-5 h-5" />
+            <Pencil className="w-4 h-4" />
           </Button>
           <Button size="icon" variant="ghost" onClick={() => onDelete(review.id)}>
-            <Trash2 className="w-5 h-5 text-red-500" />
+            <Trash2 className="w-4 h-4 text-red-500" />
           </Button>
         </div>
       )}
@@ -282,7 +277,7 @@ const ReviewItem: FC<{
   );
 };
 
-// --- טופס דירוג/עריכה אינטראקטיבי ---
+// טופס דירוג / הוספת מרצה חדש כולל חוות דעת (הכוכבים במרכז!)
 const LecturerReviewForm: FC<{
   courseId: string;
   lecturers: Lecturer[];
@@ -303,11 +298,22 @@ const LecturerReviewForm: FC<{
   const [comment, setComment] = useState("");
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, [inputRef]);
 
   const canSubmit = !!user && !!selected && Object.values(rates).every((v) => v > 0);
 
   const handleAdd = async () => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || Object.values(rates).some((v) => v === 0)) {
+      toast({
+        title: "חובה למלא שם ולדרג בכל הקטגוריות!",
+        variant: "destructive"
+      });
+      return;
+    }
     setAdding(true);
     try {
       const res = await addLecturer.mutateAsync({
@@ -315,10 +321,23 @@ const LecturerReviewForm: FC<{
         course_id: courseId,
       });
       const lec = res.existing?.[0] || res.new;
+      await submitReview.mutateAsync({
+        course_id: courseId,
+        lecturer_id: lec.id,
+        ...rates,
+        comment: comment.trim(),
+      });
       onAdded(lec);
       setSelected(lec.id);
       setNewName("");
-      toast({ title: "מרצה נוסף בהצלחה" });
+      setRates({
+        teaching_quality: 0,
+        lecturer_availability: 0,
+        personal_approach: 0,
+      });
+      setComment("");
+      toast({ title: "מרצה ודירוג נוספו בהצלחה" });
+      onSuccess();
     } catch {
       toast({ title: "שגיאה בהוספת מרצה", variant: "destructive" });
     } finally {
@@ -350,11 +369,12 @@ const LecturerReviewForm: FC<{
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-6 py-2 max-h-[56vh] overflow-auto px-2"
+      className="space-y-5 py-2 max-h-[56vh] overflow-auto px-2"
       dir="rtl"
     >
       <div className="flex flex-col sm:flex-row gap-2">
         <Input
+          ref={inputRef}
           placeholder="הוסף מרצה חדש..."
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -365,6 +385,7 @@ const LecturerReviewForm: FC<{
           onClick={handleAdd}
           disabled={adding}
           variant="secondary"
+          type="button"
           className="px-3 h-10 text-base rounded-lg"
           dir="rtl"
         >
@@ -383,18 +404,18 @@ const LecturerReviewForm: FC<{
           ))}
         </SelectContent>
       </Select>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3" dir="rtl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
         {Object.entries(PARAMS).map(([key, info]) => (
           <div
             key={key}
             className={`
-              flex flex-col items-end py-4 rounded-xl shadow-sm ${info.bg}
-              text-right
+              flex flex-col items-center justify-center py-4 rounded-xl shadow-sm ${info.bg}
+              text-center w-full
             `}
             dir="rtl"
           >
             <info.icon className={`w-6 h-6 ${info.color} mb-2`} />
-            <div className="font-bold mb-1 text-base self-end">{info.label}</div>
+            <div className="font-bold mb-1 text-base">{info.label}</div>
             <StarRating
               rating={rates[key as keyof typeof rates]!}
               size="md"
@@ -427,7 +448,7 @@ const LecturerReviewForm: FC<{
   );
 };
 
-// --- Main Section ---
+// MAIN SECTION
 const EnhancedLecturerRatingsSection: FC<{
   courseId: string;
   courseName: string;
@@ -450,7 +471,7 @@ const EnhancedLecturerRatingsSection: FC<{
   const [sortBy, setSortBy] = useState<"rating" | "reviews" | "name">("rating");
   const [filterStars, setFilterStars] = useState<number | null>(null);
 
-  // --- סינון ומיון ---
+  // סינון ומיון
   const filtered = useMemo(() => {
     let arr = lecturers.filter((l) =>
       l.name.includes(search.trim())
@@ -491,55 +512,73 @@ const EnhancedLecturerRatingsSection: FC<{
     setDialogOpen(true);
   };
 
+  // כפתורי דירוג מודרניים
+  const ratingButtons = [5, 4, 3, 2, 1].map((n) => (
+    <Button
+      key={n}
+      variant={filterStars === n ? "default" : "outline"}
+      size="icon"
+      onClick={() => setFilterStars((f) => (f === n ? null : n))}
+      className={`
+        text-base rounded-full mx-0.5
+        ${filterStars === n ? "bg-amber-400 text-white border-amber-400" : "bg-white text-yellow-600 border border-yellow-300"}
+        transition shadow
+      `}
+      style={{ width: 38, height: 38, fontWeight: "bold" }}
+    >
+      {n}★
+    </Button>
+  ));
+
   return (
     <section
       className={`
         w-full min-h-[60vh] flex flex-col items-center justify-center
-        py-7 md:py-14 relative z-0
+        py-3 md:py-10 relative z-0
         ${MODAL_BG} ${MODAL_SHADOW}
         transition-colors duration-300
         font-[Assistant,sans-serif]
       `}
       dir="rtl"
     >
-      {/* --- Header --- */}
-      <header className="text-center mb-7 md:mb-10 space-y-3">
-        <h2 className="text-3xl md:text-4xl font-extrabold text-amber-700 dark:text-yellow-200 drop-shadow">
+      {/* Header */}
+      <header className="text-center mb-6 md:mb-9 space-y-2">
+        <h2 className="text-2xl md:text-4xl font-extrabold text-amber-700 dark:text-yellow-200 drop-shadow">
           דירוג מרצים מתקדם
         </h2>
         <p className="text-gray-700 dark:text-yellow-200/90 text-base md:text-xl font-semibold">
           {courseName} — דירוג איכות, זמינות ויחס אישי
         </p>
       </header>
-      {/* --- סטטיסטיקות --- */}
-      <div className="flex flex-col md:flex-row gap-5 justify-center items-center mb-8">
+      {/* סטטיסטיקות */}
+      <div className="flex flex-row gap-4 justify-center items-center mb-5">
         <div className="flex flex-col items-center">
-          <div className="text-2xl font-bold text-amber-600 dark:text-yellow-200">{lecturers.length}</div>
-          <div className="text-base text-gray-500 dark:text-yellow-100">מרצים</div>
+          <div className="text-xl font-bold text-amber-600 dark:text-yellow-200">{lecturers.length}</div>
+          <div className="text-sm text-gray-500 dark:text-yellow-100">מרצים</div>
         </div>
         <div className="flex flex-col items-center">
-          <div className="text-2xl font-bold text-amber-600 dark:text-yellow-200">{totalRatings}</div>
-          <div className="text-base text-gray-500 dark:text-yellow-100">דירוגים</div>
+          <div className="text-xl font-bold text-amber-600 dark:text-yellow-200">{totalRatings}</div>
+          <div className="text-sm text-gray-500 dark:text-yellow-100">דירוגים</div>
         </div>
         <div className="flex flex-col items-center">
-          <div className="text-2xl font-bold text-amber-600 dark:text-yellow-200">{avgOverall.toFixed(1)}</div>
-          <div className="text-base text-gray-500 dark:text-yellow-100">ממוצע כללי</div>
+          <div className="text-xl font-bold text-amber-600 dark:text-yellow-200">{avgOverall.toFixed(1)}</div>
+          <div className="text-sm text-gray-500 dark:text-yellow-100">ממוצע כללי</div>
         </div>
       </div>
-      {/* --- חיפוש ומיון --- */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between w-full max-w-4xl mx-auto mb-6 px-3">
-        <div className="relative w-full md:w-64">
+      {/* חיפוש ומיון */}
+      <div className="flex flex-col md:flex-row gap-3 items-center justify-between w-full max-w-2xl mx-auto mb-4 px-2">
+        <div className="relative w-full md:w-56">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-300 dark:text-yellow-700" />
           <Input
             placeholder="חפש מרצה..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-10 text-base rounded-lg bg-amber-50 dark:bg-yellow-950/40 w-full text-right"
+            className="pl-10 h-9 text-base rounded-lg bg-amber-50 dark:bg-yellow-950/40 w-full text-right"
             dir="rtl"
           />
         </div>
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
-          <SelectTrigger className="h-10 w-32 text-base rounded-lg text-right" dir="rtl">
+          <SelectTrigger className="h-9 w-28 text-base rounded-lg text-right" dir="rtl">
             <Filter className="ml-2" />
             <SelectValue placeholder="מיון" />
           </SelectTrigger>
@@ -549,22 +588,12 @@ const EnhancedLecturerRatingsSection: FC<{
             <SelectItem value="name">לפי שם</SelectItem>
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-1">
-          {[5, 4, 3, 2, 1].map((n) => (
-            <Button
-              key={n}
-              variant={filterStars === n ? "default" : "outline"}
-              size="icon"
-              onClick={() => setFilterStars((f) => (f === n ? null : n))}
-              className="text-base"
-            >
-              {n}★
-            </Button>
-          ))}
+        <div className="flex items-center gap-0.5">
+          {ratingButtons}
         </div>
       </div>
-      {/* --- Top 3 --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mx-auto w-full max-w-6xl pb-4">
+      {/* Top 3 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mx-auto w-full max-w-3xl pb-3">
         {top3.map((lec, i) => (
           <Top3LecturerCard
             key={lec.id}
@@ -574,9 +603,9 @@ const EnhancedLecturerRatingsSection: FC<{
           />
         ))}
       </div>
-      {/* --- כל שאר המרצים --- */}
+      {/* כל שאר המרצים */}
       {restLecturers.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 mx-auto max-w-4xl w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 mx-auto max-w-2xl w-full">
           {restLecturers.map((lec) => (
             <LecturerCard
               key={lec.id}
@@ -586,15 +615,14 @@ const EnhancedLecturerRatingsSection: FC<{
           ))}
         </div>
       )}
-
-      {/* --- כפתור דירוג --- */}
-      <div className="text-center mb-7">
+      {/* כפתור דירוג */}
+      <div className="text-center mb-3">
         <Button
           onClick={() => openDialogFor("", "rate")}
           className={`
             flex items-center gap-2 mx-auto
             bg-gradient-to-r from-amber-400 to-yellow-500 dark:from-yellow-500 dark:to-yellow-400
-            text-white text-base md:text-xl font-extrabold px-7 md:px-10 py-3 md:py-5
+            text-white text-base md:text-xl font-extrabold px-6 md:px-8 py-2 md:py-4
             rounded-full shadow-xl hover:from-yellow-500 hover:to-yellow-600 hover:scale-105 transition
             border border-yellow-200 dark:border-yellow-800
             tracking-wide
@@ -604,38 +632,38 @@ const EnhancedLecturerRatingsSection: FC<{
           דרג או הוסף מרצה
         </Button>
       </div>
-
-      {/* --- Dialog Modal --- */}
+      {/* Dialog Modal */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           className={`
-            !max-w-[99vw] md:!max-w-4xl lg:!max-w-5xl
-            !rounded-3xl !p-0
+            !max-w-[99vw] md:!max-w-3xl lg:!max-w-4xl
+            !rounded-2xl !p-0
             border-0
             bg-transparent
             overflow-visible
-            min-h-[46vh] max-h-[96vh]
+            min-h-[36vh] max-h-[95vh]
             flex items-center justify-center
             font-[Assistant,sans-serif]
+            mt-1 sm:mt-0
           `}
         >
           <motion.div
             className={`
               relative z-10
               bg-white dark:bg-zinc-900
-              rounded-3xl overflow-hidden
+              rounded-2xl overflow-hidden
               shadow-lg
-              max-h-[95vh] min-h-[32vh]
+              max-h-[94vh] min-h-[25vh]
               flex flex-col w-full max-w-full
             `}
-            initial={{ opacity: 0, scale: 0.98, y: 60 }}
+            initial={{ opacity: 0, scale: 0.98, y: 40 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 60 }}
             transition={{ duration: 0.28 }}
             dir="rtl"
           >
-            <DialogHeader className="px-8 pt-8 pb-5 flex items-center justify-between bg-gradient-to-b from-amber-50 dark:from-yellow-900/10 to-transparent" dir="rtl">
-              <DialogTitle className="text-xl md:text-2xl font-extrabold text-amber-700 dark:text-yellow-200" dir="rtl">
+            <DialogHeader className="px-5 pt-4 pb-2 flex items-center justify-between bg-gradient-to-b from-amber-50 dark:from-yellow-900/10 to-transparent" dir="rtl">
+              <DialogTitle className="text-lg md:text-2xl font-extrabold text-amber-700 dark:text-yellow-200" dir="rtl">
                 דירוג מרצים — {courseName}
               </DialogTitle>
               <DialogClose asChild>
@@ -644,7 +672,7 @@ const EnhancedLecturerRatingsSection: FC<{
                   variant="ghost"
                   className="text-gray-600 dark:text-yellow-100 hover:bg-amber-100 dark:hover:bg-yellow-700/30 transition"
                 >
-                  <X className="w-7 h-7" />
+                  <X className="w-6 h-6" />
                 </Button>
               </DialogClose>
             </DialogHeader>
@@ -657,8 +685,8 @@ const EnhancedLecturerRatingsSection: FC<{
               <TabsList
                 className={`
                   flex w-full bg-gradient-to-r from-[#f2e1c2] via-[#232629] to-[#2d3135] dark:from-[#33373a] dark:via-[#18181b] dark:to-[#232629]
-                  rounded-3xl border border-amber-200/40 dark:border-yellow-700/40 shadow-lg mb-7 overflow-hidden
-                  min-h-[42px] flex-row-reverse
+                  rounded-2xl border border-amber-200/40 dark:border-yellow-700/40 shadow-lg mb-5 overflow-hidden
+                  min-h-[38px] flex-row-reverse
                 `}
                 dir="rtl"
               >
@@ -670,7 +698,7 @@ const EnhancedLecturerRatingsSection: FC<{
                     data-[state=active]:text-white
                     data-[state=inactive]:bg-transparent
                     data-[state=inactive]:text-amber-700/90
-                    px-2 py-2 md:py-4 rounded-3xl
+                    px-2 py-2 md:py-3 rounded-2xl
                   `}
                   dir="rtl"
                 >
@@ -684,18 +712,18 @@ const EnhancedLecturerRatingsSection: FC<{
                     data-[state=active]:text-white
                     data-[state=inactive]:bg-transparent
                     data-[state=inactive]:text-amber-700/90
-                    px-2 py-2 md:py-4 rounded-3xl
+                    px-2 py-2 md:py-3 rounded-2xl
                   `}
                   dir="rtl"
                 >
                   הצג דירוגים
                 </TabsTrigger>
               </TabsList>
-              {/* --- בחירת מרצה בראש (גם לצפייה וגם לדירוג) --- */}
+              {/* בחירת מרצה בראש */}
               {tab === "view" && (
-                <div className="flex items-center gap-3 px-6 pb-3">
+                <div className="flex items-center gap-3 px-5 pb-3">
                   <Select value={selectedId} onValueChange={setSelectedId}>
-                    <SelectTrigger className="h-10 w-64 text-base rounded-lg text-right" dir="rtl">
+                    <SelectTrigger className="h-10 w-full md:w-64 text-base rounded-lg text-right" dir="rtl">
                       <SelectValue placeholder="בחר מרצה לצפייה..." />
                     </SelectTrigger>
                     <SelectContent dir="rtl">
@@ -708,22 +736,22 @@ const EnhancedLecturerRatingsSection: FC<{
                   </Select>
                 </div>
               )}
-              {/* --- תוכן צפייה --- */}
+              {/* תוכן צפייה */}
               <TabsContent
                 value="view"
-                className="space-y-7 px-7 py-4 max-h-[54vh] overflow-y-auto"
+                className="space-y-6 px-5 py-2 max-h-[48vh] overflow-y-auto"
                 dir="rtl"
               >
                 {!selectedId ? (
-                  <div className="text-center text-gray-400 py-7 text-lg">
+                  <div className="text-center text-gray-400 py-6 text-base">
                     בחר מרצה לצפייה בפרטים
                   </div>
                 ) : reviews.length === 0 ? (
-                  <div className="text-center text-gray-500 dark:text-yellow-200 py-7 text-lg">
+                  <div className="text-center text-gray-500 dark:text-yellow-200 py-6 text-base">
                     אין חוות דעת למרצה זה עדיין
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <AnimatePresence>
                       {reviews.map((rev) => (
                         <ReviewItem
@@ -738,16 +766,16 @@ const EnhancedLecturerRatingsSection: FC<{
                   </div>
                 )}
               </TabsContent>
-              {/* --- תוכן דירוג (דרוש התחברות) --- */}
+              {/* תוכן דירוג (דרוש התחברות) */}
               <TabsContent
                 value="rate"
-                className="px-7 py-5 max-h-[54vh] overflow-y-auto"
+                className="px-5 py-2 max-h-[48vh] overflow-y-auto"
                 dir="rtl"
               >
                 {!user ? (
-                  <div className="flex flex-col items-center justify-center py-12">
+                  <div className="flex flex-col items-center justify-center py-10">
                     <LogIn className="w-12 h-12 mb-4 text-yellow-500" />
-                    <div className="text-lg font-bold mb-3">להגשת דירוג — יש להתחבר</div>
+                    <div className="text-base font-bold mb-3">להגשת דירוג — יש להתחבר</div>
                     <Button
                       className="bg-yellow-400 text-white rounded-xl px-8 py-2 font-bold"
                       onClick={login}
@@ -761,19 +789,17 @@ const EnhancedLecturerRatingsSection: FC<{
                     lecturers={courseLecs}
                     user={user}
                     onAdded={(l) => setLecturers((prev) => [...prev, l])}
-                    onSuccess={() => {
-                      setTab("view");
-                    }}
+                    onSuccess={() => setTab("view")}
                   />
                 )}
               </TabsContent>
             </Tabs>
-            <DialogFooter className="px-8 pb-6 pt-2 flex justify-end" dir="rtl">
+            <DialogFooter className="px-5 pb-5 pt-1 flex justify-end" dir="rtl">
               <DialogClose asChild>
                 <Button
                   variant="outline"
                   size="lg"
-                  className="text-base px-6 py-3 rounded-xl border-amber-300 dark:border-yellow-800"
+                  className="text-base px-5 py-2 rounded-xl border-amber-300 dark:border-yellow-800"
                 >
                   סגור
                 </Button>

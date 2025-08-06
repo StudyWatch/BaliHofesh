@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, Trash2, Clock, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Mail, Trash2, Clock, Pencil, ChevronDown, ChevronUp, UserPlus } from "lucide-react";
 import {
   useStudyPartners,
   useDeleteStudyPartner,
@@ -29,10 +29,11 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
   courseId,
   isLoggedIn,
 }) => {
-  const { data: partners = [], isLoading } = (
+  const { data: partners = [], isLoading, refetch } = (
     useStudyPartners(courseId) as {
       data: StudyPartner[];
       isLoading: boolean;
+      refetch: () => void;
     }
   );
 
@@ -40,6 +41,8 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
   const { toast } = useToast();
   const [showAll, setShowAll] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [editingPartner, setEditingPartner] = useState<StudyPartner | null>(null);
 
   useEffect(() => {
@@ -62,21 +65,46 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
       return;
     }
     deleteMutation.mutate(id, {
-      onSuccess: () => toast({ title: "הבקשה נמחקה" }),
+      onSuccess: () => {
+        toast({ title: "הבקשה נמחקה" });
+        refetch?.();
+      },
     });
   };
 
-  const handleContact = () => {
-    toast({
-      title: "📩 הודעה",
-      description: "מערכת ההודעות תתווסף בקרוב – בינתיים פנה ישירות.",
-    });
+  const handleContact = (partner: StudyPartner) => {
+    if (partner.contact_info) {
+      if (partner.contact_info.includes("@")) {
+        window.location.href = `mailto:${partner.contact_info}?subject=שותפות ללמידה באתר BaliHofesh`;
+      } else if (partner.contact_info.match(/^05\d{8}$/)) {
+        window.open(`https://wa.me/972${partner.contact_info.slice(1)}`, "_blank");
+      }
+    } else {
+      toast({
+        title: "📩 הודעה",
+        description: "אין פרטי קשר - פנה למנהל האתר או נסה שותף אחר.",
+      });
+    }
+  };
+
+  // פתיחת מודל ליצירת שותף חדש
+  const handleOpenCreate = () => {
+    setEditMode(false);
+    setEditingPartner(null);
+    setModalOpen(true);
+  };
+
+  // פתיחת מודל לעריכת שותף קיים
+  const handleOpenEdit = (partner: StudyPartner) => {
+    setEditMode(true);
+    setEditingPartner(partner);
+    setModalOpen(true);
   };
 
   return (
     <Card className="mx-auto my-8 max-w-7xl shadow-sm border border-gray-200">
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
           <CardTitle className="text-2xl font-bold flex items-center gap-2">
             🤝 שותפים ללמידה ({partners.length})
           </CardTitle>
@@ -85,18 +113,37 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
       </CardHeader>
 
       <CardContent>
-        <div className="mb-6">
-          <StudyPartnerModal
-            courseId={courseId}
-            isLoggedIn={isLoggedIn}
+        <div className="mb-6 flex flex-col items-center">
+          <Button
+            className="mb-2 w-full sm:w-auto bg-gradient-to-r from-fuchsia-500 to-violet-500 hover:from-fuchsia-600 hover:to-violet-600 text-white shadow-xl font-bold py-3 px-7 rounded-2xl text-lg transition"
+            onClick={handleOpenCreate}
             disabled={alreadyRequested}
-          />
+          >
+            <UserPlus className="inline-block mr-2" />
+            אני רוצה ללמוד עם אחרים
+          </Button>
           {alreadyRequested && (
-            <p className="mt-2 text-sm text-red-500">
+            <p className="mt-2 text-sm text-red-500 text-center">
               בקשה קיימת לזיהוי שותף 💡 תוכל לערוך או למחוק אותה בכל עת.
             </p>
           )}
         </div>
+
+        {modalOpen && (
+          <StudyPartnerModal
+            courseId={courseId}
+            isLoggedIn={isLoggedIn}
+            editMode={editMode}
+            initialData={editingPartner}
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            onSuccess={() => {
+              setModalOpen(false);
+              setEditingPartner(null);
+              refetch?.();
+            }}
+          />
+        )}
 
         {isLoading ? (
           <div className="flex justify-center py-16">
@@ -119,7 +166,10 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
                 const isMine = currentUser?.id === partner.user_id;
 
                 return (
-                  <Card key={partner.id} className="relative p-4 rounded-xl border border-gray-200 shadow hover:shadow-md transition">
+                  <Card
+                    key={partner.id}
+                    className="relative p-4 rounded-xl border border-gray-200 shadow hover:shadow-md transition"
+                  >
                     <div className="flex items-center gap-4">
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={getAvatar(partner)} alt={name} />
@@ -127,7 +177,6 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
                           <Mail className="h-5 w-5" />
                         </AvatarFallback>
                       </Avatar>
-
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
                         <p className="text-sm text-gray-600">{partner.description || "אין תיאור"}</p>
@@ -143,25 +192,26 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
                         </div>
                       </div>
                     </div>
-
-                    <div className="mt-4 flex gap-2">
-                      <Button onClick={handleContact} variant="outline" className="w-full">
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                      <Button
+                        onClick={() => handleContact(partner)}
+                        variant="outline"
+                        className="flex-1"
+                      >
                         <Mail className="h-4 w-4 ml-2" />
                         שלח הודעה
                       </Button>
-
                       {isMine && (
                         <Button
-                          onClick={() => setEditingPartner(partner)}
+                          onClick={() => handleOpenEdit(partner)}
                           variant="ghost"
-                          className="w-full text-blue-600 hover:bg-blue-50"
+                          className="flex-1 text-blue-600 hover:bg-blue-50"
                         >
                           <Pencil className="h-4 w-4 ml-2" />
                           ערוך
                         </Button>
                       )}
                     </div>
-
                     {canDelete && (
                       <button
                         onClick={() => handleDelete(partner.id, partner.user_id)}
@@ -175,7 +225,6 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
                 );
               })}
             </div>
-
             {partners.length > 6 && (
               <div className="mt-6 flex justify-center">
                 <Button variant="ghost" onClick={() => setShowAll((v) => !v)}>
@@ -194,15 +243,6 @@ const StudyPartnersListSection: React.FC<StudyPartnersListSectionProps> = ({
           </>
         )}
       </CardContent>
-
-      {editingPartner && (
-        <StudyPartnerModal
-          courseId={courseId}
-          isLoggedIn={isLoggedIn}
-          existingData={editingPartner}
-          onClose={() => setEditingPartner(null)}
-        />
-      )}
     </Card>
   );
 };

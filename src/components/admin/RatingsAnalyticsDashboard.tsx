@@ -3,21 +3,49 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { Star, Users, BookOpen, TrendingUp, TrendingDown } from "lucide-react";
-import { useRatingsAnalytics } from "@/hooks/useRatingsAnalytics";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-// צבעים יפים לגרפים
+// צבעים לגרפים
 const COLORS = ["#6d28d9", "#3b82f6", "#22c55e", "#f59e42", "#f43f5e", "#6366f1", "#eab308"];
+const PIE_COLORS = ["#22c55e", "#3b82f6", "#eab308", "#f59e42", "#f43f5e"];
 
-// עוזר להוציא ממוצע
-const average = (arr: number[]) =>
-  arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
+// עוזר חישוב ממוצע
+const average = (arr: number[]) => arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
 const RatingsAnalyticsDashboard: React.FC = () => {
-  // כאן אתה מושך נתונים ב־hook משלך שמחזיר מערכים מהטבלאות (הפוך ל-React Query אם צריך)
-  const { data: lecturerReviews = [] } = useLecturerReviews();      // טבלת lecturer_reviews
-  const { data: courseReviews = [] } = useCourseReviews();          // טבלת course_reviews
-  const { data: courses = [] } = useCourses();                      // טבלת courses
-  const { data: lecturers = [] } = useCourseLecturers();            // טבלת course_lecturers
+  // נתונים מה־DB
+  const { data: lecturerReviews = [] } = useQuery({
+    queryKey: ['lecturer_reviews'],
+    queryFn: async () => {
+      const { data } = await supabase.from('lecturer_reviews').select('*');
+      return data || [];
+    },
+  });
+
+  const { data: courseReviews = [] } = useQuery({
+    queryKey: ['course_reviews'],
+    queryFn: async () => {
+      const { data } = await supabase.from('course_reviews').select('*');
+      return data || [];
+    },
+  });
+
+  const { data: courses = [] } = useQuery({
+    queryKey: ['courses'],
+    queryFn: async () => {
+      const { data } = await supabase.from('courses').select('id, name_he');
+      return data || [];
+    },
+  });
+
+  const { data: lecturers = [] } = useQuery({
+    queryKey: ['course_lecturers'],
+    queryFn: async () => {
+      const { data } = await supabase.from('course_lecturers').select('id, name');
+      return data || [];
+    },
+  });
 
   // ===================== מרצים ======================
   // ממוצע לכל מרצה
@@ -108,13 +136,11 @@ const RatingsAnalyticsDashboard: React.FC = () => {
   const overallCourseAvg = average(courseAverages.map(c => c.avg));
   const totalLecturerReviews = lecturerReviews.length;
   const totalCourseReviews = courseReviews.length;
-  const mostReviewedLecturer = lecturerAverages.reduce((max, l) => l.count > (max?.count || 0) ? l : max, null as any);
-  const mostReviewedCourse = courseAverages.reduce((max, c) => c.count > (max?.count || 0) ? c : max, null as any);
 
   // ========== ציונים לפי קריטריונים (מרצים) ===========
-  const teachingQualityAvg = average(lecturerReviews.map((r: any) => r.teaching_quality));
-  const availabilityAvg = average(lecturerReviews.map((r: any) => r.lecturer_availability));
-  const approachAvg = average(lecturerReviews.map((r: any) => r.personal_approach));
+  const teachingQualityAvg = average(lecturerReviews.map((r: any) => Number(r.teaching_quality || 0)));
+  const availabilityAvg = average(lecturerReviews.map((r: any) => Number(r.lecturer_availability || 0)));
+  const approachAvg = average(lecturerReviews.map((r: any) => Number(r.personal_approach || 0)));
   const criteriaData = [
     { name: "איכות הוראה", value: teachingQualityAvg },
     { name: "זמינות", value: availabilityAvg },
@@ -127,9 +153,6 @@ const RatingsAnalyticsDashboard: React.FC = () => {
     count: courseReviews.filter((r: any) => r.rating === rating).length
   }));
 
-  // צבעים לפאי
-  const pieColors = ["#22c55e", "#3b82f6", "#eab308", "#f59e42", "#f43f5e"];
-
   return (
     <div className="space-y-8 p-2 md:p-6">
       <Card className="shadow-2xl rounded-2xl">
@@ -141,66 +164,37 @@ const RatingsAnalyticsDashboard: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-8 mb-8">
-            <div className="flex flex-col items-center">
-              <span className="text-xl font-bold text-purple-800">{totalLecturerReviews}</span>
-              <span className="text-xs text-gray-500">סה״כ ביקורות מרצים</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xl font-bold text-blue-700">{totalCourseReviews}</span>
-              <span className="text-xs text-gray-500">סה״כ ביקורות קורסים</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-bold text-green-700">{overallLecturerAvg.toFixed(2)}</span>
-              <span className="text-xs text-gray-500">ממוצע מרצים</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-bold text-orange-600">{overallCourseAvg.toFixed(2)}</span>
-              <span className="text-xs text-gray-500">ממוצע קורסים</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-bold text-blue-600">{teachingQualityAvg.toFixed(2)}</span>
-              <span className="text-xs text-gray-500">איכות הוראה</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-bold text-blue-600">{availabilityAvg.toFixed(2)}</span>
-              <span className="text-xs text-gray-500">זמינות</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-bold text-blue-600">{approachAvg.toFixed(2)}</span>
-              <span className="text-xs text-gray-500">יחס אישי</span>
-            </div>
+            <IndicatorBox value={totalLecturerReviews} label="סה״כ ביקורות מרצים" color="purple" />
+            <IndicatorBox value={totalCourseReviews} label="סה״כ ביקורות קורסים" color="blue" />
+            <IndicatorBox value={overallLecturerAvg.toFixed(2)} label="ממוצע מרצים" color="green" />
+            <IndicatorBox value={overallCourseAvg.toFixed(2)} label="ממוצע קורסים" color="orange" />
+            <IndicatorBox value={teachingQualityAvg.toFixed(2)} label="איכות הוראה" color="blue" />
+            <IndicatorBox value={availabilityAvg.toFixed(2)} label="זמינות" color="blue" />
+            <IndicatorBox value={approachAvg.toFixed(2)} label="יחס אישי" color="blue" />
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {/* טופ מרצים */}
-            <div>
-              <div className="text-lg font-bold mb-2 flex items-center gap-2"><Star className="text-yellow-500" />מרצים מובילים</div>
-              <ul className="space-y-2">
-                {topLecturers.map(l => (
-                  <li key={l.id} className="flex items-center gap-2 border-b pb-1">
-                    <span className="font-bold text-blue-900">{l.name}</span>
-                    <Badge className="bg-green-100 text-green-700 px-2">{l.avg}★</Badge>
-                    <Badge className="bg-blue-100 text-blue-700 px-2">{l.count} ביקורות</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <TopList
+              title="מרצים מובילים"
+              icon={<Star className="text-yellow-500" />}
+              list={topLecturers}
+              nameColor="text-blue-900"
+              avgColor="bg-green-100 text-green-700"
+            />
             {/* טופ קורסים */}
-            <div>
-              <div className="text-lg font-bold mb-2 flex items-center gap-2"><BookOpen className="text-blue-400" />קורסים מובילים</div>
-              <ul className="space-y-2">
-                {topCourses.map(c => (
-                  <li key={c.id} className="flex items-center gap-2 border-b pb-1">
-                    <span className="font-bold text-purple-900">{c.name}</span>
-                    <Badge className="bg-orange-100 text-orange-700 px-2">{c.avg}★</Badge>
-                    <Badge className="bg-blue-100 text-blue-700 px-2">{c.count} ביקורות</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <TopList
+              title="קורסים מובילים"
+              icon={<BookOpen className="text-blue-400" />}
+              list={topCourses}
+              nameColor="text-purple-900"
+              avgColor="bg-orange-100 text-orange-700"
+            />
             {/* התפלגות דירוגים */}
             <div>
-              <div className="text-lg font-bold mb-2 flex items-center gap-2"><TrendingDown className="text-red-500" />התפלגות דירוגי קורסים</div>
+              <div className="text-lg font-bold mb-2 flex items-center gap-2">
+                <TrendingDown className="text-red-500" />התפלגות דירוגי קורסים
+              </div>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={ratingDistribution}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -213,69 +207,97 @@ const RatingsAnalyticsDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* פירוט קריטריונים - Pie */}
+          {/* קריטריונים - Pie */}
           <div className="grid md:grid-cols-2 gap-8 mt-10">
             <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><Star className="text-blue-600" />ממוצע לפי קריטריונים במרצים</div>
+              <div className="font-bold mb-2 flex items-center gap-2">
+                <Star className="text-blue-600" />ממוצע לפי קריטריונים במרצים
+              </div>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie data={criteriaData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
                     {criteriaData.map((entry, idx) => (
-                      <Cell key={entry.name} fill={pieColors[idx % pieColors.length]} />
+                      <Cell key={entry.name} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><Users className="text-gray-500" />מרצים עם הכי הרבה ביקורות</div>
-              <ul className="space-y-2">
-                {lecturerAverages
-                  .sort((a, b) => b.count - a.count)
-                  .slice(0, 5)
-                  .map(l => (
-                  <li key={l.id} className="flex items-center gap-2 border-b pb-1">
-                    <span className="font-bold text-blue-900">{l.name}</span>
-                    <Badge className="bg-blue-100 text-blue-700 px-2">{l.count} ביקורות</Badge>
-                    <Badge className="bg-green-100 text-green-700 px-2">{l.avg}★</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <TopList
+              title="מרצים עם הכי הרבה ביקורות"
+              icon={<Users className="text-gray-500" />}
+              list={lecturerAverages.sort((a, b) => b.count - a.count).slice(0, 5)}
+              nameColor="text-blue-900"
+              avgColor="bg-blue-100 text-blue-700"
+              showCountOnly
+            />
           </div>
 
-          {/* קורסים עם ממוצע נמוך */}
+          {/* קורסים/מרצים עם ממוצע נמוך */}
           <div className="grid md:grid-cols-2 gap-8 mt-10">
-            <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><TrendingDown className="text-red-400" />מרצים עם ממוצע נמוך</div>
-              <ul className="space-y-2">
-                {lowLecturers.map(l => (
-                  <li key={l.id} className="flex items-center gap-2 border-b pb-1">
-                    <span className="font-bold text-blue-900">{l.name}</span>
-                    <Badge className="bg-red-100 text-red-700 px-2">{l.avg}★</Badge>
-                    <Badge className="bg-blue-100 text-blue-700 px-2">{l.count} ביקורות</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><TrendingDown className="text-orange-500" />קורסים עם ממוצע נמוך</div>
-              <ul className="space-y-2">
-                {lowCourses.map(c => (
-                  <li key={c.id} className="flex items-center gap-2 border-b pb-1">
-                    <span className="font-bold text-purple-900">{c.name}</span>
-                    <Badge className="bg-red-100 text-red-700 px-2">{c.avg}★</Badge>
-                    <Badge className="bg-blue-100 text-blue-700 px-2">{c.count} ביקורות</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <TopList
+              title="מרצים עם ממוצע נמוך"
+              icon={<TrendingDown className="text-red-400" />}
+              list={lowLecturers}
+              nameColor="text-blue-900"
+              avgColor="bg-red-100 text-red-700"
+            />
+            <TopList
+              title="קורסים עם ממוצע נמוך"
+              icon={<TrendingDown className="text-orange-500" />}
+              list={lowCourses}
+              nameColor="text-purple-900"
+              avgColor="bg-red-100 text-red-700"
+            />
           </div>
         </CardContent>
       </Card>
     </div>
   );
 };
+
+// קומפוננטות עזר
+const IndicatorBox = ({ value, label, color }: { value: string | number, label: string, color: string }) => (
+  <div className={`flex flex-col items-center`}>
+    <span className={`text-xl font-bold text-${color}-700 dark:text-${color}-400`}>{value}</span>
+    <span className="text-xs text-gray-500">{label}</span>
+  </div>
+);
+
+const TopList = ({
+  title,
+  icon,
+  list,
+  nameColor,
+  avgColor,
+  showCountOnly = false,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  list: any[];
+  nameColor: string;
+  avgColor: string;
+  showCountOnly?: boolean;
+}) => (
+  <div>
+    <div className="text-lg font-bold mb-2 flex items-center gap-2">{icon}{title}</div>
+    <ul className="space-y-2">
+      {list.map((item) => (
+        <li key={item.id} className="flex items-center gap-2 border-b pb-1">
+          <span className={`font-bold ${nameColor}`}>{item.name}</span>
+          {showCountOnly ? (
+            <Badge className={avgColor + " px-2"}>{item.count} ביקורות</Badge>
+          ) : (
+            <>
+              <Badge className={avgColor + " px-2"}>{item.avg}★</Badge>
+              <Badge className="bg-blue-100 text-blue-700 px-2">{item.count} ביקורות</Badge>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
 export default RatingsAnalyticsDashboard;

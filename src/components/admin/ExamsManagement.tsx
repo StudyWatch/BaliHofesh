@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+// זיהוי לפי סמסטר
+function getExamSessionsBySemester(semester: string = ''): string[] {
+  if (/קיץ|summer/i.test(semester)) {
+    // סמסטר קיץ (רק א, ב)
+    return ['מועד א', 'מועד ב'];
+  }
+  // סמסטר רגיל (א1, א2, ב)
+  return ['מועד א1', 'מועד א2', 'מועד ב'];
+}
+
+const examFormats = ['פרונטלי', 'מקוון', 'היברידי', 'טייק הום'];
+
 const ExamsManagement = () => {
   const [editingExam, setEditingExam] = useState<any>(null);
   const [filterCourse, setFilterCourse] = useState('all');
@@ -20,7 +32,7 @@ const ExamsManagement = () => {
   const [selectedCourse, setSelectedCourse] = useState('');
   const [formData, setFormData] = useState({
     exam_type: '',
-    exam_session: 'מועד א',
+    exam_session: '',
     exam_date: '',
     exam_time: '09:00',
     location: '',
@@ -30,10 +42,7 @@ const ExamsManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const examSessions = ['מועד א', 'מועד ב', 'מועד ג'];
-  const examFormats = ['פרונטלי', 'מקוון', 'היברידי', 'טייק הום'];
-
-  // Fetch all courses
+  // שליפת קורסים כולל סמסטר
   const { data: courses = [] } = useQuery({
     queryKey: ['courses-for-exams'],
     queryFn: async () => {
@@ -43,6 +52,7 @@ const ExamsManagement = () => {
           id,
           name_he,
           code,
+          semester,
           institutions (
             name_he
           )
@@ -53,7 +63,7 @@ const ExamsManagement = () => {
     }
   });
 
-  // Fetch exam dates
+  // שליפת מועדים
   const { data: examDates = [] } = useQuery({
     queryKey: ['all-exam-dates'],
     queryFn: async () => {
@@ -64,6 +74,7 @@ const ExamsManagement = () => {
           courses (
             name_he,
             code,
+            semester,
             institutions (
               name_he
             )
@@ -75,30 +86,31 @@ const ExamsManagement = () => {
     }
   });
 
+  // ניתוח אפשרויות מועדים לפי הקורס שנבחר
+  const currentSemester = useMemo(() => {
+    if (!selectedCourse) return '';
+    const course = courses.find((c: any) => c.id === selectedCourse);
+    return course?.semester || '';
+  }, [selectedCourse, courses]);
+
+  const examSessions = useMemo(() => getExamSessionsBySemester(currentSemester), [currentSemester]);
+
   const createExamMutation = useMutation({
     mutationFn: async (examData: any) => {
-      const { error } = await supabase
-        .from('exam_dates')
-        .insert([examData]);
+      const { error } = await supabase.from('exam_dates').insert([examData]);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-exam-dates'] });
       setIsDialogOpen(false);
       resetForm();
-      toast({
-        title: "הצלחה",
-        description: "המועד נוצר בהצלחה"
-      });
+      toast({ title: "הצלחה", description: "המועד נוצר בהצלחה" });
     }
   });
 
   const updateExamMutation = useMutation({
     mutationFn: async ({ id, ...examData }: any) => {
-      const { error } = await supabase
-        .from('exam_dates')
-        .update(examData)
-        .eq('id', id);
+      const { error } = await supabase.from('exam_dates').update(examData).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -106,34 +118,25 @@ const ExamsManagement = () => {
       setIsDialogOpen(false);
       setEditingExam(null);
       resetForm();
-      toast({
-        title: "הצלחה",
-        description: "המועד עודכן בהצלחה"
-      });
+      toast({ title: "הצלחה", description: "המועד עודכן בהצלחה" });
     }
   });
 
   const deleteExamMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('exam_dates')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('exam_dates').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-exam-dates'] });
-      toast({
-        title: "הצלחה",
-        description: "המועד נמחק בהצלחה"
-      });
+      toast({ title: "הצלחה", description: "המועד נמחק בהצלחה" });
     }
   });
 
   function resetForm() {
     setFormData({
       exam_type: '',
-      exam_session: 'מועד א',
+      exam_session: '', // ייבחר לפי קורס
       exam_date: '',
       exam_time: '09:00',
       location: '',
@@ -148,7 +151,7 @@ const ExamsManagement = () => {
     if (editingExam) {
       setFormData({
         exam_type: editingExam.exam_type || '',
-        exam_session: editingExam.exam_session || 'מועד א',
+        exam_session: editingExam.exam_session || '',
         exam_date: editingExam.exam_date || '',
         exam_time: editingExam.exam_time || '09:00',
         location: editingExam.location || '',
@@ -167,17 +170,14 @@ const ExamsManagement = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse) {
-      toast({
-        title: 'שגיאה',
-        description: 'יש לבחור קורס',
-        variant: 'destructive'
-      });
+      toast({ title: 'שגיאה', description: 'יש לבחור קורס', variant: 'destructive' });
       return;
     }
-    const examData = {
-      course_id: selectedCourse,
-      ...formData
-    };
+    if (!formData.exam_session) {
+      toast({ title: 'שגיאה', description: 'יש לבחור מועד', variant: 'destructive' });
+      return;
+    }
+    const examData = { course_id: selectedCourse, ...formData };
     if (editingExam) {
       updateExamMutation.mutate({ id: editingExam.id, ...examData });
     } else {
@@ -204,12 +204,10 @@ const ExamsManagement = () => {
   };
 
   const getSessionBadgeColor = (session: string) => {
-    switch (session) {
-      case 'מועד א': return 'bg-blue-100 text-blue-800';
-      case 'מועד ב': return 'bg-green-100 text-green-800';
-      case 'מועד ג': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    if (session.startsWith('מועד א')) return 'bg-blue-100 text-blue-800';
+    if (session === 'מועד ב') return 'bg-green-100 text-green-800';
+    if (session === 'מועד ג') return 'bg-orange-100 text-orange-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -219,7 +217,7 @@ const ExamsManagement = () => {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
-              ניהול מועדי בחינות - תמיכה ב-3 מועדים
+              ניהול מועדי בחינות - התאמה אוטומטית לפי סמסטר
             </CardTitle>
             <Dialog open={isDialogOpen} onOpenChange={(open) => {
               setIsDialogOpen(open);
@@ -254,7 +252,7 @@ const ExamsManagement = () => {
                       <SelectContent>
                         {courses.map((course: any) => (
                           <SelectItem key={course.id} value={course.id}>
-                            {course.name_he} ({course.code})
+                            {course.name_he} ({course.code}) {course.semester ? `- ${course.semester}` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -276,6 +274,7 @@ const ExamsManagement = () => {
                       <Select
                         value={formData.exam_session}
                         onValueChange={value => setFormData(prev => ({ ...prev, exam_session: value }))}
+                        disabled={!selectedCourse}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="בחר מועד" />
@@ -428,6 +427,7 @@ const ExamsManagement = () => {
                           <div className="font-medium">{exam.courses?.name_he}</div>
                           <div className="text-sm text-gray-500">{exam.courses?.code}</div>
                           <div className="text-xs text-gray-400">{exam.courses?.institutions?.name_he}</div>
+                          <div className="text-xs text-gray-400">{exam.courses?.semester}</div>
                         </div>
                       </TableCell>
                       <TableCell>

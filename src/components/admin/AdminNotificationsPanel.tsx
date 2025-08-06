@@ -17,14 +17,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Bell, Plus, Edit, Trash2, AlertCircle, Mail, ShieldCheck } from "lucide-react";
+import dayjs from "dayjs";
+import "dayjs/locale/he";
 
-let dayjs: any = null;
-try { dayjs = require("dayjs"); } catch (e) {
-  dayjs = (d: string | Date) => ({
-    format: (fmt: string) => new Date(d).toLocaleString("he-IL"),
-    locale: () => dayjs,
-  });
-}
+// קהלי יעד
+const AUDIENCES = [
+  { value: "all", label: "כל המשתמשים" },
+  { value: "admins", label: "אדמינים" },
+  { value: "tutors", label: "מורים פרטיים" }
+];
 
 const NOTIFICATION_TYPES = [
   { value: "system", label: "מערכת" },
@@ -42,7 +43,7 @@ const DELIVERY_OPTIONS = [
 ];
 
 type Notification = {
-  id: string;
+  id?: string;
   user_id: string;
   type: string;
   title: string;
@@ -59,6 +60,9 @@ type Notification = {
   delivery_target?: "site" | "push" | "both";
 };
 
+type NotificationFormData = Omit<Notification, "id" | "user_id"> & {
+  audience: "all" | "admins" | "tutors";
+};
 type AdminNotification = {
   id: string;
   title: string;
@@ -72,8 +76,8 @@ type AdminNotification = {
 const AdminNotificationsPanel: React.FC = () => {
   const [tab, setTab] = useState<"system" | "admin">("system");
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("");
-  const [filterDelivery, setFilterDelivery] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [filterDelivery, setFilterDelivery] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
   const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
@@ -82,8 +86,8 @@ const AdminNotificationsPanel: React.FC = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // שליפת התראות מערכת רגילות
-  const { data: notifications = [], isLoading } = useQuery({
+  // טען את כל ההתראות
+  const { data: notifications = [] } = useQuery({
     queryKey: ["admin-notifications"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -95,7 +99,7 @@ const AdminNotificationsPanel: React.FC = () => {
     }
   });
 
-  // שליפת התראות אדמין
+  // התראות אדמין (לוג בלבד)
   const { data: adminNotifications = [] } = useQuery({
     queryKey: ["admin-admin-notifications"],
     queryFn: async () => {
@@ -108,37 +112,59 @@ const AdminNotificationsPanel: React.FC = () => {
     }
   });
 
-  // קריאת כמות לא נקראו
   const unreadCount = adminNotifications.filter((n) => !n.is_read).length;
 
-  // יצירה/עדכון התראה מערכת רגילה
-  const upsertMutation = useMutation({
-    mutationFn: async (notif: Notification) => {
-      if (editingNotification) {
-        const { error } = await supabase
-          .from("notifications")
-          .update(notif)
-          .eq("id", editingNotification.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("notifications")
-          .insert([notif]);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
-      toast({ title: "הצלחה", description: editingNotification ? "התראה עודכנה" : "התראה נשלחה" });
-      setEditingNotification(null);
-      setIsDialogOpen(false);
-    },
-    onError: (err: any) => {
-      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+  // שליחת התראה מרובה לפי audience
+ const upsertMutation = useMutation({
+  mutationFn: async (notif: NotificationFormData) => {
+    let userRows: { id: string }[] = [];
+    if (notif.audience === "all") {
+      const { data, error } = await supabase.from("profiles").select("id");
+      if (error) throw error;
+      userRows = data ?? [];
+    } else if (notif.audience === "admins") {
+      const { data, error } = await supabase.from("profiles").select("id").eq("role", "admin");
+      if (error) throw error;
+      userRows = data ?? [];
+    } else if (notif.audience === "tutors") {
+      const { data, error } = await supabase.from("profiles").select("id").eq("is_tutor", true);
+      if (error) throw error;
+      userRows = data ?? [];
     }
-  });
+    if (!userRows.length) throw new Error("לא נמצאו משתמשים ליעד שנבחר");
 
-  // מחיקת התראה מערכת רגילה
+    // Bulk insert - יוצר התראה לכל משתמש (לפי הקהל)
+    const notifications: Omit<Notification, "id">[] = userRows.map(u => ({
+      ...notif,
+      user_id: u.id,
+      // לא שומרים audience
+    }));
+
+    // עדכון (edit) - מעדכן רק את ההתראה שנבחרה
+    if (editingNotification && editingNotification.id) {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ ...notifications[0] })
+        .eq("id", editingNotification.id);
+      if (error) throw error;
+    } else {
+      // יצירה חדשה - bulk insert
+      const { error } = await supabase.from("notifications").insert(notifications);
+      if (error) throw error;
+    }
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
+    toast({ title: "הצלחה", description: editingNotification ? "התראה עודכנה" : "התראה נשלחה" });
+    setEditingNotification(null);
+    setIsDialogOpen(false);
+  },
+  onError: (err: any) => {
+    toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+  }
+});
+
+  // מחיקת התראה
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("notifications").delete().eq("id", id);
@@ -150,7 +176,7 @@ const AdminNotificationsPanel: React.FC = () => {
     }
   });
 
-  // יצירת התראת אדמין חדשה
+  // יצירת התראת אדמין (לוג בלבד)
   const createAdminNotifMutation = useMutation({
     mutationFn: async (notif: Omit<AdminNotification, "id" | "created_at" | "is_read">) => {
       const { error } = await supabase
@@ -172,7 +198,10 @@ const AdminNotificationsPanel: React.FC = () => {
   // מחיקת התראת אדמין
   const deleteAdminNotifMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("admin_notifications").delete().eq("id", id);
+      const { error } = await supabase
+        .from("admin_notifications")
+        .delete()
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -181,14 +210,14 @@ const AdminNotificationsPanel: React.FC = () => {
     }
   });
 
-  // סינון
+  // סינון (אין ערך ריק)
   const filteredNotifications = notifications.filter(n => {
     const searchMatch =
       !search ||
       n.title?.toLowerCase().includes(search.toLowerCase()) ||
       n.message?.toLowerCase().includes(search.toLowerCase());
-    const typeMatch = !filterType || n.type === filterType;
-    const deliveryMatch = !filterDelivery || n.delivery_target === filterDelivery;
+    const typeMatch = filterType === "all" || n.type === filterType;
+    const deliveryMatch = filterDelivery === "all" || n.delivery_target === filterDelivery;
     return searchMatch && typeMatch && deliveryMatch;
   });
 
@@ -205,14 +234,11 @@ const AdminNotificationsPanel: React.FC = () => {
           </CardTitle>
         </div>
       </CardHeader>
-
       <Tabs value={tab} onValueChange={v => setTab(v as "system" | "admin")} className="w-full">
         <TabsList className="mb-3 w-full flex justify-center">
           <TabsTrigger value="system">התראות מערכת</TabsTrigger>
           <TabsTrigger value="admin">התראות אדמין</TabsTrigger>
         </TabsList>
-
-        {/* מערכת רגילה */}
         <TabsContent value="system">
           <div className="flex flex-wrap gap-2 mb-6 items-center">
             <Input
@@ -226,7 +252,7 @@ const AdminNotificationsPanel: React.FC = () => {
                 <SelectValue placeholder="סוג התראה" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">הכל</SelectItem>
+                <SelectItem value="all">הכל</SelectItem>
                 {NOTIFICATION_TYPES.map(opt => (
                   <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
@@ -237,7 +263,7 @@ const AdminNotificationsPanel: React.FC = () => {
                 <SelectValue placeholder="אופן משלוח" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">הכל</SelectItem>
+                <SelectItem value="all">הכל</SelectItem>
                 {DELIVERY_OPTIONS.map(opt => (
                   <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
@@ -245,8 +271,8 @@ const AdminNotificationsPanel: React.FC = () => {
             </Select>
             <Button variant="outline" onClick={() => {
               setSearch("");
-              setFilterType("");
-              setFilterDelivery("");
+              setFilterType("all");
+              setFilterDelivery("all");
             }}>איפוס סינון</Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -324,7 +350,7 @@ const AdminNotificationsPanel: React.FC = () => {
                         </Button>
                         <Button variant="destructive" size="sm" onClick={() => {
                           if (window.confirm("למחוק התראה זו?")) {
-                            deleteMutation.mutate(n.id);
+                            deleteMutation.mutate(n.id!);
                           }
                         }}>
                           <Trash2 className="w-4 h-4" />
@@ -432,15 +458,14 @@ const AdminNotificationsPanel: React.FC = () => {
   );
 };
 
-// טופס התראה רגילה
+// === טופס התראה רגילה עם בחירת קהל יעד ===
 const NotificationForm: React.FC<{
   defaultData?: Notification | null;
-  onSave: (data: Notification) => void;
+  onSave: (data: NotificationFormData) => void;
   isLoading: boolean;
 }> = ({ defaultData, onSave, isLoading }) => {
-  const [form, setForm] = useState<Notification>({
-    id: defaultData?.id || "",
-    user_id: defaultData?.user_id || "",
+  const [form, setForm] = useState<NotificationFormData>({
+    audience: "all",
     type: defaultData?.type || "",
     title: defaultData?.title || "",
     message: defaultData?.message || "",
@@ -493,6 +518,19 @@ const NotificationForm: React.FC<{
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div>
+        <label className="text-sm font-bold">קהל יעד</label>
+        <Select value={form.audience} onValueChange={v => setForm(f => ({ ...f, audience: v }))}>
+          <SelectTrigger>
+            <SelectValue placeholder="בחר קהל יעד" />
+          </SelectTrigger>
+          <SelectContent>
+            {AUDIENCES.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <label className="text-sm font-bold">כותרת</label>
@@ -602,7 +640,7 @@ const AdminNotifForm: React.FC<{
             try {
               setForm(f => ({ ...f, metadata: JSON.parse(e.target.value) }));
             } catch {
-              // לא עושה כלום, לא תקין
+              // ignore if invalid json
             }
           }}
         />

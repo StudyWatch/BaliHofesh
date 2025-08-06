@@ -1,20 +1,12 @@
 import React, { useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useCreateSharedSession } from "@/hooks/useSharedSessions";
@@ -59,7 +51,7 @@ const platforms = [
     quickUrl: "auto-jitsi",
     regex: /^https:\/\/meet\.jit\.si\/[A-Za-z0-9_\-]{3,}/,
     help: "לחיצה יוצרת קישור Jitsi מיידי.",
-  }
+  },
 ];
 
 function detectPlatformFromLink(link: string): string {
@@ -116,12 +108,11 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
     return `https://meet.jit.si/BaliHofesh-${randomId}`;
   };
 
-  // בוחרים פלטפורמה – לא פותח לינק! רק מחליף בחירה
+  // בחירת פלטפורמה
   const handlePlatformSelect = (platValue: string) => {
     setPlatform(platValue as any);
     setShowOpenLinkBtn(platValue);
     setLinkError("");
-    // Jitsi – מייצר אוטומטית קישור ומעתיק ללוח
     if (platValue === "jitsi") {
       const jitsiLink = generateJitsiLink();
       setMeetingLink(jitsiLink);
@@ -140,14 +131,11 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
     }
   };
 
-  // פותח את הפלטפורמה בחלון חדש
+  // פתח קישור מהיר
   const handleOpenPlatform = (platValue: string) => {
     const plat = platforms.find(p => p.value === platValue);
     if (!plat) return;
-    if (plat.quickUrl === "auto-jitsi") {
-      // כבר נוצר בלמעלה
-      return;
-    }
+    if (plat.quickUrl === "auto-jitsi") return;
     window.open(plat.quickUrl, "_blank");
   };
 
@@ -259,59 +247,56 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
     setShowOpenLinkBtn(null);
   };
 
-  // עיצוב כפתורי פלטפורמות – רספונסיבי ונעים, תומך "פתח קישור חדש" + אנימציה
+  // רספונסיביות גריד!
   const renderPlatformButtons = () => (
-    <div className="flex flex-wrap justify-center gap-x-6 gap-y-7 mb-4 mt-2 w-full">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-3 mt-1">
       {platforms.map((p) => (
-        <div
-          key={p.value}
-          className={`flex flex-col items-center min-w-[105px] max-w-[130px] text-center relative group`}
-        >
+        <div key={p.value} className="flex flex-col items-center text-center">
           <Button
-            size="sm"
             type="button"
+            aria-label={p.label}
+            size="sm"
             className={`
-              bg-gradient-to-r ${p.color} text-white rounded-lg
-              flex items-center justify-center gap-1 px-3 py-2 text-[15px] shadow-md
-              transition-all duration-200 border-2
-              ${platform === p.value ? "ring-2 ring-blue-400 scale-105 border-blue-400" : "hover:ring hover:ring-blue-300 border-transparent"}
+              bg-gradient-to-r ${p.color} text-white rounded-xl
+              flex items-center justify-center gap-1 px-3 py-2 font-semibold shadow-md
+              border-2 ${platform === p.value ? "ring-2 ring-blue-400 scale-105 border-blue-400" : "hover:ring hover:ring-blue-300 border-transparent"}
+              w-full min-w-[100px] min-h-[44px] text-base
+              focus-visible:ring-2 focus-visible:ring-indigo-400
+              transition-all duration-200
             `}
-            style={{ fontWeight: 600, minHeight: 40, minWidth: 100 }}
             onClick={() => handlePlatformSelect(p.value)}
-            title={p.label}
           >
-            <span className="text-lg">{p.icon}</span>
+            <span className="text-xl">{p.icon}</span>
             {p.label}
           </Button>
-          <span className="text-[11px] text-gray-500 mt-1 leading-tight max-w-[110px]">
-            {p.help}
-          </span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{p.help}</span>
           <AnimatePresence>
             {showOpenLinkBtn === p.value && p.quickUrl !== "auto-jitsi" && (
               <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.33, ease: "easeOut" }}
                 className="w-full flex justify-center"
               >
-                          <Button
-                 variant="outline"
-                 className="mt-2 w-full min-w-[220px] px-3 py-2 border border-blue-300 text-blue-700 hover:bg-blue-50 text-sm font-semibold flex items-center justify-center gap-2 shadow-sm rounded-md transition whitespace-nowrap"
-                 onClick={() => handleOpenPlatform(p.key)}
-               >
-                 <ExternalLink className="w-4 h-4 ml-1" />
-                 פתח קישור חדש {p.label}
-               </Button>
+                <Button
+                  variant="outline"
+                  className="mt-2 w-full min-w-[120px] px-3 py-2 border border-blue-300 text-blue-700 hover:bg-blue-50 text-sm font-semibold flex items-center justify-center gap-2 shadow-sm rounded-lg transition whitespace-nowrap"
+                  onClick={() => handleOpenPlatform(p.value)}
+                  aria-label={`פתח קישור חדש ב${p.label}`}
+                >
+                  <ExternalLink className="w-4 h-4 ml-1" />
+                  פתח קישור חדש {p.label}
+                </Button>
               </motion.div>
             )}
             {showOpenLinkBtn === p.value && p.quickUrl === "auto-jitsi" && (
               <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -7, scale: 0.97 }}
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -7 }}
                 transition={{ duration: 0.33, ease: "easeOut" }}
-                className="mt-2 text-green-700 text-xs font-semibold w-full"
+                className="mt-2 text-green-700 dark:text-green-400 text-xs font-semibold w-full"
               >
                 קישור Jitsi חדש נוצר והועתק ללוח!
               </motion.div>
@@ -324,27 +309,31 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
 
   if (!isLoggedIn) {
     return (
-      <Button disabled className="mb-4 w-full">
-        📚 יש להתחבר כדי לפתוח מפגש
-      </Button>
+      <div className="w-full flex justify-center my-5">
+        <Button disabled className="w-full md:w-auto bg-gray-200 dark:bg-gray-800 text-gray-400 text-lg px-8 py-3 rounded-xl">
+          📚 יש להתחבר כדי לפתוח מפגש לימוד
+        </Button>
+      </div>
     );
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="mb-5 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white shadow rounded-lg text-base font-semibold px-4 py-1.5 w-fit min-w-[170px] max-w-[220px]">
+        <Button
+          className="mb-5 w-full md:w-auto bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white shadow rounded-xl text-base font-semibold px-4 py-2 min-w-[170px] max-w-[260px]"
+        >
           <Video className="inline w-5 h-5 ml-2" />
           פתח מפגש לימוד
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-w-[560px] w-full max-h-[96vh] overflow-y-auto rounded-2xl shadow-2xl bg-white dark:bg-gray-900 p-4" dir="rtl">
+      <DialogContent className="sm:max-w-2xl max-w-[96vw] w-full max-h-[98vh] overflow-y-auto rounded-2xl shadow-2xl bg-white dark:bg-gray-900 p-4" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold mb-1">
             <Video className="w-5 h-5 text-blue-500" /> פתיחת מפגש לימוד
           </DialogTitle>
         </DialogHeader>
-        <div className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-blue-900 text-[13px] mb-2 border border-blue-100 font-normal flex items-center gap-1">
+        <div className="rounded-lg bg-blue-50 dark:bg-blue-950 px-2.5 py-1.5 text-blue-900 dark:text-blue-100 text-[13px] mb-2 border border-blue-100 dark:border-blue-900 font-normal flex items-center gap-1">
           <Info className="w-4 h-4 mr-1 text-blue-400" />
           בחר פלטפורמה, פתח קישור או צור קישור Jitsi אוטומטי. אפשר גם להדביק קישור קיים.
         </div>
@@ -358,7 +347,7 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
               onChange={(e) => setTitle(e.target.value)}
               placeholder="תרגול / הכנה / פתרון..."
               required
-              className="rounded-lg text-[15px] py-2"
+              className="rounded-lg text-[15px] py-2 bg-white dark:bg-slate-800"
             />
           </div>
           <div>
@@ -371,10 +360,10 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
               placeholder="הדבק קישור או צור אוטומטית למעלה"
               required
               dir="ltr"
-              className={`rounded-lg text-[15px] py-2 ${linkError ? "border-red-500" : ""}`}
+              className={`rounded-lg text-[15px] py-2 bg-white dark:bg-slate-800 ${linkError ? "border-red-500" : ""}`}
             />
             {meetingLink && platformDetected && (
-              <div className="text-xs text-green-700 mt-0.5">
+              <div className="text-xs text-green-700 dark:text-green-400 mt-0.5">
                 זוהתה פלטפורמה: <b>{platforms.find(p => p.value === platformDetected)?.label || ""}</b>
               </div>
             )}
@@ -390,7 +379,7 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
               onChange={(e) => setDescription(e.target.value)}
               placeholder="על מה נדבר? מה נלמד?"
               rows={2}
-              className="rounded-lg text-[15px]"
+              className="rounded-lg text-[15px] bg-white dark:bg-slate-800"
             />
           </div>
           <div>
@@ -400,14 +389,14 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
               value={contactInfo}
               onChange={(e) => setContactInfo(e.target.value)}
               placeholder="מייל / טלפון"
-              className="rounded-lg text-[15px]"
+              className="rounded-lg text-[15px] bg-white dark:bg-slate-800"
             />
           </div>
-          <div className="flex gap-2 items-end">
+          <div className="flex flex-col md:flex-row gap-2 items-stretch">
             <div className="flex-1">
               <Label className="font-semibold text-[14px]">משך משוער</Label>
               <Select value={duration.toString()} onValueChange={val => setDuration(Number(val))}>
-                <SelectTrigger className="rounded-lg text-[15px] py-2">
+                <SelectTrigger className="rounded-lg text-[15px] py-2 bg-white dark:bg-slate-800">
                   <SelectValue placeholder="בחר משך" />
                 </SelectTrigger>
                 <SelectContent>
@@ -426,7 +415,7 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
                 value={maxParticipants.toString()}
                 onValueChange={val => setMaxParticipants(Number(val))}
               >
-                <SelectTrigger className="rounded-lg text-[15px] py-2">
+                <SelectTrigger className="rounded-lg text-[15px] py-2 bg-white dark:bg-slate-800">
                   <SelectValue placeholder="ללא הגבלה" />
                 </SelectTrigger>
                 <SelectContent>
@@ -452,7 +441,7 @@ const SharedStudyModal: React.FC<SharedStudyModalProps> = ({ courseId, isLoggedI
               type="button"
               variant="ghost"
               onClick={() => setOpen(false)}
-              className="font-semibold text-base text-gray-600"
+              className="font-semibold text-base text-gray-600 dark:text-gray-300"
             >
               <X className="w-5 h-5 ml-1" /> ביטול
             </Button>

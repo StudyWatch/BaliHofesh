@@ -46,8 +46,8 @@ const InstitutionsManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get Open University institution
-  const { data: openUniversity } = useQuery({
+  // שליפת מוסד "האוניברסיטה הפתוחה"
+  const { data: openUniversity, isLoading: loadingInstitution } = useQuery({
     queryKey: ['open-university'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -60,7 +60,7 @@ const InstitutionsManagement = () => {
     }
   });
 
-  // Fetch courses for Open University
+  // שליפת קורסים לאוניברסיטה הפתוחה
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['courses', openUniversity?.id],
     queryFn: async () => {
@@ -76,20 +76,16 @@ const InstitutionsManagement = () => {
     enabled: !!openUniversity?.id
   });
 
-  // Add/Update/Delete Mutations
+  // Mutations
   const addCourseMutation = useMutation({
-    mutationFn: async (courseData: Omit<Course, 'id' | 'created_at' | 'updated_at'>) => {
-      const { data, error } = await supabase
+    mutationFn: async (courseData: Omit<Course, 'id' | 'created_at' | 'updated_at' | 'institution_id'>) => {
+      const { error } = await supabase
         .from('courses')
-        .insert([courseData])
-        .select()
-        .single();
+        .insert([{ ...courseData, institution_id: openUniversity?.id }]);
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courses'] });
-      queryClient.invalidateQueries({ queryKey: ['open-university-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['courses', openUniversity?.id] });
       setIsDialogOpen(false);
       setEditingCourse(null);
       toast({ title: "הצלחה", description: "הקורס נוסף בהצלחה" });
@@ -105,18 +101,14 @@ const InstitutionsManagement = () => {
 
   const updateCourseMutation = useMutation({
     mutationFn: async ({ id, ...courseData }: Partial<Course> & { id: string }) => {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('courses')
         .update(courseData)
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courses'] });
-      queryClient.invalidateQueries({ queryKey: ['open-university-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['courses', openUniversity?.id] });
       setIsDialogOpen(false);
       setEditingCourse(null);
       toast({ title: "הצלחה", description: "הקורס עודכן בהצלחה" });
@@ -139,8 +131,7 @@ const InstitutionsManagement = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['courses'] });
-      queryClient.invalidateQueries({ queryKey: ['open-university-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['courses', openUniversity?.id] });
       toast({ title: "הצלחה", description: "הקורס נמחק בהצלחה" });
     },
     onError: (error: any) => {
@@ -152,31 +143,30 @@ const InstitutionsManagement = () => {
     }
   });
 
-  // Filter courses
+  // סינון קורסים
   const filteredCourses = courses.filter(course =>
     course.name_he.toLowerCase().includes(searchTerm.toLowerCase()) ||
     course.name_en?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     course.code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSaveCourse = (courseData: Omit<Course, 'id' | 'created_at' | 'updated_at'>) => {
-    const dataWithInstitution = {
-      ...courseData,
-      institution_id: openUniversity?.id || ''
-    };
+  // שמירה
+  const handleSaveCourse = (courseData: Omit<Course, 'id' | 'created_at' | 'updated_at' | 'institution_id'>) => {
     if (editingCourse) {
-      updateCourseMutation.mutate({ id: editingCourse.id, ...dataWithInstitution });
+      updateCourseMutation.mutate({ id: editingCourse.id, ...courseData });
     } else {
-      addCourseMutation.mutate(dataWithInstitution);
+      addCourseMutation.mutate(courseData);
     }
   };
 
+  // מחיקה
   const handleDeleteCourse = (courseId: string) => {
     if (confirm('האם אתה בטוח שברצונך למחוק את הקורס?')) {
       deleteCourseMutation.mutate(courseId);
     }
   };
 
+  // טופס עריכה/הוספה
   const handleAddCourse = () => {
     setEditingCourse(null);
     setIsDialogOpen(true);
@@ -187,7 +177,7 @@ const InstitutionsManagement = () => {
     setIsDialogOpen(true);
   };
 
-  if (!openUniversity) {
+  if (loadingInstitution) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
@@ -201,19 +191,19 @@ const InstitutionsManagement = () => {
     <Card className="bg-white/80 dark:bg-blue-950/40 border-2 border-blue-100">
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
-            <BookOpen className="w-5 h-5" />
-            <span>ניהול קורסי האוניברסיטה הפתוחה</span>
+          <CardTitle className="flex items-center gap-3 text-blue-900 dark:text-blue-100">
+            <BookOpen className="w-6 h-6" />
+            <span>קורסי {openUniversity?.name_he || '...'}</span>
             <span className="text-base font-normal text-gray-400">({filteredCourses.length})</span>
           </CardTitle>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={handleAddCourse} className="bg-green-600 hover:bg-green-700 flex gap-2 items-center">
+              <Button onClick={handleAddCourse} className="bg-green-600 hover:bg-green-700 flex gap-2 items-center rounded-xl shadow">
                 <Plus className="w-4 h-4 ml-1" />
                 הוסף קורס חדש
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {editingCourse ? 'עריכת קורס' : 'הוספת קורס חדש'}
@@ -230,7 +220,7 @@ const InstitutionsManagement = () => {
         </div>
       </CardHeader>
       <CardContent>
-        {/* Search */}
+        {/* חיפוש */}
         <div className="mb-6">
           <div className="relative max-w-md">
             <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
@@ -242,7 +232,6 @@ const InstitutionsManagement = () => {
             />
           </div>
         </div>
-
         {isLoading ? (
           <div className="text-center py-8 text-lg text-blue-600">טוען קורסים...</div>
         ) : (
@@ -299,6 +288,7 @@ const InstitutionsManagement = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => handleEditCourse(course)}
+                          title="עריכת קורס"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -306,6 +296,7 @@ const InstitutionsManagement = () => {
                           variant="destructive"
                           size="sm"
                           onClick={() => handleDeleteCourse(course.id)}
+                          title="מחק קורס"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -325,7 +316,7 @@ const InstitutionsManagement = () => {
             <p className="text-gray-600 mb-4">
               {searchTerm ? 'לא נמצאו קורסים המתאימים לחיפוש' : 'טרם נוספו קורסים למערכת'}
             </p>
-            <Button onClick={handleAddCourse} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={handleAddCourse} className="bg-green-600 hover:bg-green-700 rounded-xl shadow">
               <Plus className="w-4 h-4 ml-2" />
               הוסף את הקורס הראשון
             </Button>
@@ -336,6 +327,7 @@ const InstitutionsManagement = () => {
   );
 };
 
+// ==== טופס הוספה/עריכה ====
 const CourseForm = ({
   course,
   onSave,
@@ -343,7 +335,7 @@ const CourseForm = ({
   isLoading
 }: {
   course: Course | null;
-  onSave: (data: Omit<Course, 'id' | 'created_at' | 'updated_at'>) => void;
+  onSave: (data: Omit<Course, 'id' | 'created_at' | 'updated_at' | 'institution_id'>) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) => {
@@ -354,7 +346,6 @@ const CourseForm = ({
     semester: course?.semester || '',
     exam_date: course?.exam_date || '',
     enable_collaboration: course?.enable_collaboration || false,
-    institution_id: course?.institution_id || ''
   });
 
   useEffect(() => {
@@ -366,7 +357,6 @@ const CourseForm = ({
         semester: course?.semester || '',
         exam_date: course?.exam_date || '',
         enable_collaboration: course?.enable_collaboration || false,
-        institution_id: course?.institution_id || ''
       });
     } else {
       setFormData({
@@ -376,13 +366,13 @@ const CourseForm = ({
         semester: '',
         exam_date: '',
         enable_collaboration: false,
-        institution_id: ''
       });
     }
   }, [course]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name_he) return;
     onSave(formData);
   };
 

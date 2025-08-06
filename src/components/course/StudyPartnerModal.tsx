@@ -1,44 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  useCreateStudyPartner,
-  useUserActiveStudyPartner,
-  useExtendStudyPartner,
-} from "@/hooks/useStudyPartners";
+import { UploadCloud, X, Pencil } from "lucide-react";
+import { useCreateStudyPartner } from "@/hooks/useStudyPartners";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { UserPlus, UploadCloud, X, Repeat, Pencil } from "lucide-react";
-
-interface StudyPartnerModalProps {
-  courseId: string;
-  isLoggedIn: boolean;
-  disabled?: boolean;
-  editMode?: boolean;
-  initialData?: any; // StudyPartner
-}
 
 const daysOfWeek = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
-const hours = Array.from({ length: 24 }, (_, i) =>
-  `${i.toString().padStart(2, "0")}:00`
-);
-
+const hours = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, "0")}:00`);
 const defaultAvatars = [
   "https://api.dicebear.com/7.x/adventurer/svg?seed=Grandpa",
   "https://api.dicebear.com/7.x/adventurer/svg?seed=Grandma",
@@ -50,14 +27,25 @@ const defaultAvatars = [
   "https://api.dicebear.com/7.x/avataaars/svg?seed=CoolDude",
 ];
 
+interface StudyPartnerModalProps {
+  courseId: string;
+  isLoggedIn: boolean;
+  editMode: boolean;
+  initialData: any;
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
 const StudyPartnerModal = ({
   courseId,
   isLoggedIn,
-  disabled,
   editMode = false,
   initialData = null,
+  open,
+  onClose,
+  onSuccess,
 }: StudyPartnerModalProps) => {
-  const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [contactInfo, setContactInfo] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string>(defaultAvatars[0]);
@@ -69,18 +57,15 @@ const StudyPartnerModal = ({
   const [noSpecificTime, setNoSpecificTime] = useState(false);
   const [duration, setDuration] = useState("7"); // ברירת מחדל שבוע
   const { mutate: createPartner, isPending } = useCreateStudyPartner();
-  const { mutate: extendPartner, isPending: isExtending } = useExtendStudyPartner();
   const { toast } = useToast();
-  const { data: activeRequest, refetch: refetchActive } = useUserActiveStudyPartner(courseId);
 
-  // 🟢 טען ערכים קיימים במצב עריכה
+  // טען ערכים במצב עריכה
   useEffect(() => {
     if (editMode && initialData) {
       setDescription(initialData.description || "");
       setContactInfo(initialData.contact_info || "");
       setAvatarUrl(initialData.avatar_url || defaultAvatars[0]);
       setAvatarPreview(initialData.avatar_url || defaultAvatars[0]);
-
       if (
         initialData.available_hours?.length === 1 &&
         initialData.available_hours[0] === "אין זמן מסוים"
@@ -95,7 +80,6 @@ const StudyPartnerModal = ({
         setSelectedTimes(parsed);
       }
     } else if (!editMode) {
-      // איפוס ערכים
       setDescription("");
       setContactInfo("");
       setAvatarUrl(defaultAvatars[0]);
@@ -106,7 +90,7 @@ const StudyPartnerModal = ({
     }
   }, [editMode, initialData, open]);
 
-  // העלאת תמונה ושמירה ל-profiles
+  // העלאת תמונה
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -114,7 +98,6 @@ const StudyPartnerModal = ({
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-
       if (!user || userError) {
         toast({
           title: "שגיאה",
@@ -123,14 +106,12 @@ const StudyPartnerModal = ({
         });
         return;
       }
-
       const ext = file.name.split(".").pop();
       const filePath = `users/${user.id}.${ext}`;
       await supabase.storage.from("avatars").remove([filePath]);
       const { data, error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(filePath, file, { upsert: true });
-
       if (uploadError || !data) {
         toast({
           title: "❌ שגיאה בהעלאת תמונה",
@@ -142,17 +123,7 @@ const StudyPartnerModal = ({
       const { publicUrl } = supabase.storage.from("avatars").getPublicUrl(filePath).data;
       setAvatarUrl(publicUrl);
       setAvatarPreview(publicUrl);
-      const { error: profileUpdateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", user.id);
-      if (profileUpdateError) {
-        toast({
-          title: "שגיאה בשמירת תמונה בפרופיל",
-          description: profileUpdateError.message,
-          variant: "destructive",
-        });
-      }
+      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", user.id);
     }
   };
 
@@ -177,7 +148,7 @@ const StudyPartnerModal = ({
     setSelectedTimes((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // יצירה או עדכון בקשה (בהתאם ל־editMode)
+  // שליחה
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description) {
@@ -197,45 +168,11 @@ const StudyPartnerModal = ({
       });
       return;
     }
-
     const formattedTimes = noSpecificTime
       ? ["אין זמן מסוים"]
       : selectedTimes.map((t) => `${t.day} ${t.start}-${t.end}`);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + parseInt(duration, 10));
-
-    // במצב עריכה - שלח עדכון (לא Insert!)
-    if (editMode && initialData?.id) {
-      const { error } = await supabase
-        .from("study_partners")
-        .update({
-          description,
-          contact_info: contactInfo.trim() || undefined,
-          avatar_url: avatarUrl,
-          available_hours: formattedTimes,
-          preferred_times: formattedTimes,
-          expires_at: expiresAt.toISOString(),
-        })
-        .eq("id", initialData.id);
-
-      if (error) {
-        toast({
-          title: "שגיאה",
-          description: "אירעה שגיאה בשמירת העריכה",
-          variant: "destructive",
-        });
-        return;
-      }
-      toast({
-        title: "הבקשה עודכנה",
-        description: "הבקשה שלך עודכנה בהצלחה",
-      });
-      setOpen(false);
-      refetchActive?.();
-      return;
-    }
-
-    // מצב יצירה רגיל
     createPartner(
       {
         course_id: courseId,
@@ -253,120 +190,41 @@ const StudyPartnerModal = ({
             title: "✅ הצלחה",
             description: `הבקשה פורסמה בהצלחה ותהיה פעילה למשך ${duration} ימים`,
           });
-          setOpen(false);
-          setDescription("");
-          setSelectedTimes([]);
-          setContactInfo("");
-          setAvatarUrl(defaultAvatars[0]);
-          setAvatarPreview(defaultAvatars[0]);
-          setNoSpecificTime(false);
-          setDuration("7");
-          refetchActive?.();
+          onSuccess();
         },
-        onError: (error) => {
+        onError: () => {
           toast({
             title: "❌ שגיאה",
             description: "אירעה שגיאה בפרסום הבקשה",
             variant: "destructive",
           });
-          console.error(error);
         },
       }
     );
   };
 
-  // הארכת בקשה
-  const handleExtend = () => {
-    if (!activeRequest) return;
-    extendPartner(
-      {
-        id: activeRequest.id,
-        extraDays: parseInt(duration, 10),
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: "הבקשה הוארכה",
-            description: `הבקשה פעילה לעוד ${duration} ימים!`,
-          });
-          setOpen(false);
-          refetchActive?.();
-        },
-        onError: (error) => {
-          toast({
-            title: "שגיאה",
-            description: "שגיאה בהארכת הבקשה",
-            variant: "destructive",
-          });
-        },
-      }
-    );
-  };
-
-  if (!isLoggedIn) {
-    return (
-      <Button disabled className="mb-4">
-        📚 יש להתחבר כדי להציע שותפות
-      </Button>
-    );
-  }
+  if (!isLoggedIn) return null;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          className={
-            editMode
-              ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white"
-              : "mb-4 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white shadow-xl font-bold py-3 px-6 rounded-lg text-lg transition"
-          }
-          onClick={() => setOpen(true)}
-        >
-          {editMode ? (
-            <>
-              <Pencil className="inline-block mr-2" />
-              ערוך בקשה
-            </>
-          ) : (
-            <>
-              <UserPlus className="inline-block mr-2" />
-              אני רוצה ללמוד עם אחרים
-            </>
-          )}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 shadow-lg" dir="rtl">
         <DialogHeader>
-          <DialogTitle>{editMode ? "עריכת שותפות לימודים" : "✨ פרסום שותפות ללמידה"}</DialogTitle>
+          <DialogTitle>
+            {editMode ? "עריכת שותפות לימודים" : "✨ פרסום שותפות ללמידה"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Avatar Section */}
           <div>
             <Label>בחר תמונת פרופיל</Label>
-            <div className="flex gap-3 items-center">
-              <img
-                src={avatarPreview}
-                alt="Avatar Preview"
-                className="w-16 h-16 rounded-full border-2 border-purple-300"
-              />
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-                id={`avatarUpload${editMode ? "Edit" : ""}`}
-              />
-              <label htmlFor={`avatarUpload${editMode ? "Edit" : ""}`} className="cursor-pointer flex items-center gap-2">
+            <div className="flex gap-3 items-center flex-wrap">
+              <img src={avatarPreview} alt="Avatar Preview" className="w-16 h-16 rounded-full border-2 border-purple-300" />
+              <Input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" id="avatarUpload" />
+              <label htmlFor="avatarUpload" className="cursor-pointer flex items-center gap-2">
                 <UploadCloud className="w-5 h-5 text-gray-500" />
                 העלה תמונה
               </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleAvatarChange(defaultAvatars[0])}
-              >
-                🌀 ברירת מחדל
-              </Button>
+              <Button variant="ghost" size="sm" onClick={() => handleAvatarChange(defaultAvatars[0])}>ברירת מחדל</Button>
             </div>
             <div className="grid grid-cols-4 gap-2 mt-3">
               {defaultAvatars.map((url, idx) => (
@@ -374,15 +232,12 @@ const StudyPartnerModal = ({
                   key={idx}
                   src={url}
                   alt={`Avatar ${idx}`}
-                  className={`w-12 h-12 rounded-full border cursor-pointer ${
-                    avatarPreview === url ? "ring-2 ring-purple-400" : ""
-                  }`}
+                  className={`w-12 h-12 rounded-full border cursor-pointer ${avatarPreview === url ? "ring-2 ring-purple-400" : ""}`}
                   onClick={() => handleAvatarChange(url)}
                 />
               ))}
             </div>
           </div>
-
           {/* Description */}
           <div>
             <Label htmlFor="description">תיאור *</Label>
@@ -393,9 +248,9 @@ const StudyPartnerModal = ({
               placeholder="למשל: רוצה ללמוד פרק 4 עם דגש על התרגולים"
               rows={3}
               required
+              className="bg-white dark:bg-slate-800 rounded-lg"
             />
           </div>
-
           {/* Contact Info */}
           <div>
             <Label htmlFor="contactInfo">פרטי קשר (אימייל/טלפון)</Label>
@@ -404,32 +259,26 @@ const StudyPartnerModal = ({
               value={contactInfo}
               onChange={(e) => setContactInfo(e.target.value)}
               placeholder="user@gmail.com או 050-1234567"
+              className="bg-white dark:bg-slate-800 rounded-lg"
             />
           </div>
-
           {/* Time Selection */}
           <div>
             <Label>הוסף זמן למפגש</Label>
             <div className="flex items-center gap-2 mb-2">
-              <input
-                type="checkbox"
-                checked={noSpecificTime}
-                onChange={() => setNoSpecificTime(!noSpecificTime)}
-              />
+              <input type="checkbox" checked={noSpecificTime} onChange={() => setNoSpecificTime(!noSpecificTime)} />
               <span className="text-sm">אין זמן מסוים</span>
             </div>
             {!noSpecificTime && (
               <>
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                   <Select value={newDay} onValueChange={setNewDay}>
                     <SelectTrigger>
                       <SelectValue placeholder="בחר יום" />
                     </SelectTrigger>
                     <SelectContent>
                       {daysOfWeek.map((day) => (
-                        <SelectItem key={day} value={day}>
-                          {day}
-                        </SelectItem>
+                        <SelectItem key={day} value={day}>{day}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -439,9 +288,7 @@ const StudyPartnerModal = ({
                     </SelectTrigger>
                     <SelectContent>
                       {hours.map((hour) => (
-                        <SelectItem key={hour} value={hour}>
-                          {hour}
-                        </SelectItem>
+                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -451,9 +298,7 @@ const StudyPartnerModal = ({
                     </SelectTrigger>
                     <SelectContent>
                       {hours.map((hour) => (
-                        <SelectItem key={hour} value={hour}>
-                          {hour}
-                        </SelectItem>
+                        <SelectItem key={hour} value={hour}>{hour}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -461,29 +306,17 @@ const StudyPartnerModal = ({
                     ➕ הוסף
                   </Button>
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 space-y-1">
                   {selectedTimes.map((t, idx) => (
-                    <div
-                      key={idx}
-                      className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded"
-                    >
-                      <span className="text-sm">
-                        📅 {t.day}, 🕒 {t.start}-{t.end}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => removeTimeSlot(idx)}
-                      >
-                        ❌ הסר
-                      </Button>
+                    <div key={idx} className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                      <span className="text-sm">📅 {t.day}, 🕒 {t.start}-{t.end}</span>
+                      <Button size="sm" variant="outline" onClick={() => removeTimeSlot(idx)}>הסר</Button>
                     </div>
                   ))}
                 </div>
               </>
             )}
           </div>
-
           {/* משך בקשה */}
           <div>
             <Label>תוקף הבקשה</Label>
@@ -498,7 +331,6 @@ const StudyPartnerModal = ({
               </SelectContent>
             </Select>
           </div>
-
           {/* Submit */}
           <div className="flex gap-2 pt-4">
             <Button
@@ -511,15 +343,16 @@ const StudyPartnerModal = ({
                   ? "שומר שינויים..."
                   : "שמור שינויים"
                 : isPending
-                ? "📤 שולח..."
-                : "✅ שלח בקשה"}
+                  ? "📤 שולח..."
+                  : "✅ שלח בקשה"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={onClose}
+              className="text-gray-600 dark:text-gray-300"
             >
-              ביטול
+              <X className="w-5 h-5 ml-1" /> ביטול
             </Button>
           </div>
         </form>

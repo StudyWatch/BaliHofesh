@@ -17,17 +17,20 @@ import SemesterManagement from '@/components/admin/SemesterManagement';
 import CourseGroupsManagement from '@/components/admin/CourseGroupsManagement';
 import AdvancedAdminDashboard from '@/components/admin/AdvancedAdminDashboard';
 import CourseReviewsManagement from '@/components/admin/CourseReviewsManagement';
+import AdminNotificationsPanel from '@/components/admin/AdminNotificationsPanel'; // <<< ⭐ NEW
 import AdminMobileMenu from '@/components/admin/AdminMobileMenu';
 
 import {
   BookOpen, Calendar, GraduationCap, Lightbulb, Megaphone, ShoppingCart,
-  MessageSquare, Users, Shield, UserCheck, BarChart3, Mail, UsersRound
+  MessageSquare, Users, Shield, UserCheck, BarChart3, Mail, UsersRound, Bell
 } from 'lucide-react';
 
 import { AdminTab } from '@/types/admin';
 
+// כל הסקשנים — כולל נוטיפיקציות!
 const adminSections: { id: AdminTab; icon: React.ElementType; label: string; component: React.ReactNode }[] = [
   { id: 'dashboard', icon: BarChart3, label: 'דשבורד', component: <AdvancedAdminDashboard /> },
+  { id: 'notifications', icon: Bell, label: 'התראות', component: <AdminNotificationsPanel /> }, // ⭐ התראות — חדש!
   { id: 'reviews', icon: MessageSquare, label: 'ביקורות', component: <CourseReviewsManagement /> },
   { id: 'courses', icon: BookOpen, label: 'קורסים', component: <InstitutionsManagement /> },
   { id: 'semesters', icon: Calendar, label: 'סמסטרים', component: <SemesterManagement /> },
@@ -46,26 +49,37 @@ const adminSections: { id: AdminTab; icon: React.ElementType; label: string; com
 const bgGradient =
   'bg-gradient-to-br from-[#F0F4FF] via-[#e5ecff] to-[#f8f9fc] dark:from-[#141e30] dark:via-[#283e51] dark:to-[#1a1a2e]';
 
+const splitTabs = (tabs: typeof adminSections, maxPerRow: number = 8) => {
+  if (tabs.length <= maxPerRow) return [tabs];
+  return [
+    tabs.slice(0, maxPerRow),
+    tabs.slice(maxPerRow)
+  ];
+};
+
 const Admin = () => {
   const { dir } = useLanguage();
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const { profile } = useAdminAuth();
 
+  // עיצוב: פיצול הטאבים לשתי שורות אם יש הרבה טאבים
+  const tabRows = splitTabs(adminSections, 8);
+
   return (
     <ProtectedRoute requireAdmin={true}>
       <div className={`min-h-screen flex flex-col ${bgGradient}`} dir={dir}>
-        {/* רקע SVG */}
+        {/* רקע SVG דקורטיבי */}
         <div aria-hidden className="fixed inset-0 -z-10 pointer-events-none">
           <svg className="absolute top-[-130px] right-[-100px] opacity-25 w-[600px] h-[300px] rotate-[18deg] blur-[1px] hidden lg:block"
             viewBox="0 0 800 400" fill="none">
-            <ellipse cx="400" cy="200" rx="320" ry="80" fill="#3b82f6"/>
+            <ellipse cx="400" cy="200" rx="320" ry="80" fill="#3b82f6" />
           </svg>
           <svg className="absolute bottom-[-120px] left-[-70px] opacity-20 w-[400px] h-[300px] blur-[1px] hidden md:block"
             viewBox="0 0 500 300" fill="none">
-            <ellipse cx="250" cy="150" rx="180" ry="50" fill="#818cf8"/>
+            <ellipse cx="250" cy="150" rx="180" ry="50" fill="#818cf8" />
           </svg>
         </div>
-        
+
         {/* Header */}
         <header className="w-full max-w-7xl mx-auto flex flex-col items-center justify-center py-8 px-3 md:px-10">
           <div className="flex items-center gap-3 md:gap-5">
@@ -84,33 +98,35 @@ const Admin = () => {
           </div>
         </header>
 
-        {/* Tabs Nav */}
+        {/* Tabs Nav - שתי שורות אוטומטית */}
         <nav
-          className="flex flex-row items-center gap-2 md:gap-5 px-2 md:px-8 py-2 mb-1 w-full overflow-x-auto
-          bg-white/70 dark:bg-gray-900/80 shadow-lg sticky top-0 z-30 whitespace-nowrap border-b border-gray-200 dark:border-gray-800
-          backdrop-blur"
+          className="flex flex-col gap-1 px-2 md:px-8 py-2 mb-1 w-full bg-white/70 dark:bg-gray-900/80 shadow-lg sticky top-0 z-30 border-b border-gray-200 dark:border-gray-800 backdrop-blur"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
-          {adminSections.map(section => (
-            <button
-              key={section.id}
-              onClick={() => setActiveTab(section.id)}
-              className={`
-                flex flex-col items-center justify-center px-3 py-2 transition
-                rounded-2xl font-bold select-none
-                duration-150
-                ${activeTab === section.id
-                  ? "bg-gradient-to-t from-blue-100 via-blue-50 to-white dark:from-blue-900 dark:via-blue-950 dark:to-gray-900 shadow-lg scale-105 text-blue-700 dark:text-blue-100"
-                  : "text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950"}
-                focus:outline-none
-              `}
-              style={{ minWidth: 82 }}
-              aria-current={activeTab === section.id}
-              tabIndex={0}
-            >
-              <section.icon className={`w-6 h-6 mb-1 transition-transform duration-150 ${activeTab === section.id ? "scale-110" : ""}`} />
-              <span className="text-xs font-medium">{section.label}</span>
-            </button>
+          {tabRows.map((row, i) => (
+            <div key={i} className="flex flex-row items-center gap-2 md:gap-5 w-full overflow-x-auto whitespace-nowrap mb-1 justify-center">
+              {row.map(section => (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveTab(section.id)}
+                  className={`
+                    flex flex-col items-center justify-center px-3 py-2 transition
+                    rounded-2xl font-bold select-none
+                    duration-150
+                    ${activeTab === section.id
+                      ? "bg-gradient-to-t from-blue-100 via-blue-50 to-white dark:from-blue-900 dark:via-blue-950 dark:to-gray-900 shadow-lg scale-105 text-blue-700 dark:text-blue-100"
+                      : "text-gray-600 dark:text-gray-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950"}
+                    focus:outline-none
+                  `}
+                  style={{ minWidth: 82 }}
+                  aria-current={activeTab === section.id}
+                  tabIndex={0}
+                >
+                  <section.icon className={`w-6 h-6 mb-1 transition-transform duration-150 ${activeTab === section.id ? "scale-110" : ""}`} />
+                  <span className="text-xs font-medium">{section.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -118,7 +134,7 @@ const Admin = () => {
         <div className="block md:hidden mb-3">
           <AdminMobileMenu
             activeTab={activeTab}
-            onTabChange={(tab) => setActiveTab(tab)}
+            onTabChange={setActiveTab}
           />
         </div>
 

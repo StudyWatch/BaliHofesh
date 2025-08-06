@@ -545,7 +545,7 @@ const Index = () => {
         </main>
         <Footer />
       </div>
-      {/* CSS מותאם */}
+      {/* CSS מותאם לכל מובייל + תיקונים ספציפיים */}
       <style>{`
         @keyframes gradient-shift {
           0% { background-position: 0% 50%; }
@@ -580,12 +580,32 @@ const Index = () => {
           box-shadow: 0 3px 12px 0 rgba(185,110,255,0.07);
           border-radius: 1rem;
         }
+        /* --- מובייל: כרטיסים רחבים ומלאים בכל מכשיר --- */
         @media (max-width: 767px) {
           .keen-slider__slide > .card {
             min-width: 92vw !important;
-            max-width: 98vw !important;
+            max-width: 99vw !important;
             margin-left: 1vw;
             margin-right: 1vw;
+          }
+          html, body, #root, .min-h-screen {
+            min-height: 100vh !important;
+            height: 100dvh !important;
+            box-sizing: border-box;
+            overscroll-behavior: none;
+          }
+        }
+        /* תיקוני גובה לאייפון/סמסונג/ספארי */
+        @supports (-webkit-touch-callout: none) {
+          html, body, #root, .min-h-screen {
+            min-height: -webkit-fill-available !important;
+            height: -webkit-fill-available !important;
+          }
+        }
+        /* פיקס קטן לתצוגת דפדפני ברירת מחדל */
+        @media (max-width: 350px) {
+          .keen-slider__slide > .card {
+            min-width: 96vw !important;
           }
         }
       `}</style>
