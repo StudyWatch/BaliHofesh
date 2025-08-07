@@ -23,12 +23,12 @@ import { useLanguage } from '@/contexts/LanguageContext';
 const popularCoursesKeywords = [
   "בדידה", "אלגברה לינארית", "אינפי", "אינפי 1", "אינפיניטסמלי", "חשבון", "לוגיקה", "ממן", "מבוא", "סטטיסטיקה"
 ];
-function isPopular(course) {
+function isPopular(course: any) {
   const name = `${course.name_he} ${course.name_en || ""}`.toLowerCase();
   return popularCoursesKeywords.some((kw) => name.includes(kw.toLowerCase()));
 }
 
-const Index = () => {
+const Index: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sliderLoaded, setSliderLoaded] = useState(false);
   const [pauseCarousel, setPauseCarousel] = useState(false);
@@ -38,6 +38,7 @@ const Index = () => {
   const { user } = useAuth();
   const { t, language, dir, isRTL, getLocalizedText, formatLocalizedDate } = useLanguage();
 
+  // Benefits (i18n)
   const benefits = [
     { icon: <Gift size={22} />, label: t("home.benefits.discounts") },
     { icon: <ShoppingCart size={22} />, label: t("home.benefits.store") },
@@ -46,10 +47,12 @@ const Index = () => {
     { icon: <Users size={22} />, label: t("home.benefits.community") },
   ];
 
+  // מוסד וקורסים
   const { data: openUniversity, isLoading: isLoadingInstitution } = usePublicInstitution();
   const { data: courses = [], isLoading: isLoadingCourses } = usePublicCourses(openUniversity?.id);
   const isLoading = isLoadingInstitution || isLoadingCourses;
 
+  // קורסים שמורים
   const { data: savedCoursesData = [] } = useQuery({
     queryKey: ["user-saved-courses", user?.id],
     enabled: !!user,
@@ -57,30 +60,28 @@ const Index = () => {
       const { data } = await supabase
         .from("user_course_progress")
         .select("course_id")
-        .eq("user_id", user.id);
+        .eq("user_id", user!.id);
       return data?.map((row) => row.course_id) ?? [];
     }
   });
 
   const savedCourseIds = new Set(savedCoursesData);
-  const savedCourses = courses.filter((c) => savedCourseIds.has(c.id));
-  const popularCourses = courses.filter(
-    (c) => isPopular(c) && !savedCourseIds.has(c.id)
-  );
-  const otherCourses = courses.filter(
-    (c) => !savedCourseIds.has(c.id) && !isPopular(c)
-  );
+  const savedCourses = courses.filter((c: any) => savedCourseIds.has(c.id));
+  const popularCourses = courses.filter((c: any) => isPopular(c) && !savedCourseIds.has(c.id));
+  const otherCourses = courses.filter((c: any) => !savedCourseIds.has(c.id) && !isPopular(c));
   const carouselCourses = [...savedCourses, ...popularCourses, ...otherCourses].slice(0, 12);
 
+  // תוצאות חיפוש
   const isSearch = searchTerm.trim() !== "";
   const filteredCourses = isSearch
     ? courses.filter(
-        (course) =>
+        (course: any) =>
           getLocalizedText(course).toLowerCase().includes(searchTerm.toLowerCase()) ||
           course.code?.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : courses;
 
+  // קרוסלה
   const [sliderRef, instanceRef] = useKeenSlider({
     loop: true,
     rtl: isRTL,
@@ -97,14 +98,13 @@ const Index = () => {
   useEffect(() => {
     if (!sliderLoaded || !instanceRef.current || isSearch) return;
     if (pauseCarousel) return;
-    const interval = setInterval(() => {
-      instanceRef.current?.next();
-    }, 3400);
+    const interval = setInterval(() => instanceRef.current?.next(), 3400);
     return () => clearInterval(interval);
   }, [sliderLoaded, instanceRef, isSearch, pauseCarousel]);
 
-  const handleCourseClick = (courseId) => navigate(`/course/${courseId}`);
-  const coursesSectionRef = useRef(null);
+  const handleCourseClick = (courseId: string) => navigate(`/course/${courseId}`);
+
+  const coursesSectionRef = useRef<HTMLDivElement | null>(null);
   const scrollToCourses = () => {
     if (coursesSectionRef.current) {
       coursesSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -112,18 +112,16 @@ const Index = () => {
   };
   const handleClearSearch = () => setSearchTerm("");
 
-  const searchRef = useRef(null);
+  // חיפוש sticky
+  const searchRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (window.innerWidth > 767) return;
     const el = searchRef.current;
     if (!el) return;
     const onScroll = () => {
-      if (window.scrollY > 30) {
-        el.classList.add("sticky-search-active");
-      } else {
-        el.classList.remove("sticky-search-active");
-      }
+      if (window.scrollY > 30) el.classList.add("sticky-search-active");
+      else el.classList.remove("sticky-search-active");
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -162,25 +160,44 @@ const Index = () => {
           <path d="M0 46C263 126 514 38 872 49C1230 60 1512 104 1728 42V90H0V46Z" fill="#fff" />
         </svg>
       </div>
+
       <div className="relative z-10">
+        {/* Header */}
         <div className="main-header-override">
           <Header />
         </div>
+
         {!user && <WelcomeBanner />}
-        <main className="flex-1 flex flex-col justify-between">
-          {/* Hero Section */}
-          <section className="pt-4 pb-2 md:py-14 bg-transparent min-h-[calc(100vh-168px)] flex flex-col justify-between">
+
+        <main className="flex-1 flex flex-col">
+          {/* ========================= HERO (fills phone screen) ========================= */}
+          <section
+            className="
+              hero-safe
+              pt-4 pb-0 md:py-14
+              bg-transparent
+              flex flex-col justify-between
+              min-h-[100dvh] md:min-h-[calc(100vh-168px)]
+            "
+          >
+            {/* תוכן ה־Hero */}
             <div className="container mx-auto px-2 flex flex-col items-center text-center flex-1">
               <div className="hero-title-enhanced mb-3 w-full md:w-3/4">
-                <h1 className="text-[1.35rem] sm:text-2xl md:text-5xl font-extrabold text-white mb-1 drop-shadow-2xl dark:text-pink-100" style={{ lineHeight: '1.13' }}>
+                <h1
+                  className="text-[1.35rem] sm:text-2xl md:text-5xl font-extrabold text-white mb-1 drop-shadow-2xl dark:text-pink-100"
+                  style={{ lineHeight: '1.13' }}
+                >
                   {t("home.hero.title")}
                 </h1>
                 <p className="text-[0.96rem] md:text-xl text-white/90 mb-2 drop-shadow dark:text-pink-50/90">
                   {t("home.hero.subtitle")}
                 </p>
+
+                {/* פס יתרונות - מוסתר במובייל */}
                 <div className="hidden md:flex flex-wrap gap-3 justify-center mt-6 mb-1">
                   {benefits.map((b, i) => (
-                    <span key={i}
+                    <span
+                      key={i}
                       className="flex items-center gap-2 rounded-full bg-white/30 dark:bg-pink-500/20 px-4 py-2 font-bold text-base md:text-lg text-blue-900 dark:text-pink-50 shadow backdrop-blur-sm border border-white/30"
                     >
                       {b.icon}
@@ -189,16 +206,21 @@ const Index = () => {
                   ))}
                 </div>
               </div>
+
+              {/* חיפוש - sticky במובייל */}
               <div ref={searchRef} className="max-w-xl w-full mx-auto mb-3 sticky-search z-20">
                 <div className="relative group">
-                  <Search className={`absolute ${isRTL ? "right-4" : "left-4"} top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-pink-200 w-6 h-6 group-focus-within:text-blue-500 transition-colors`} />
+                  <Search
+                    className={`absolute ${isRTL ? "right-4" : "left-4"} top-1/2 -translate-y-1/2 text-gray-400 dark:text-pink-200 w-6 h-6 group-focus-within:text-blue-500 transition-colors`}
+                  />
                   <Input
                     type="text"
                     placeholder={t("home.search.course_placeholder")}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className={`
-                      pl-4 pr-12 py-3 text-base md:text-lg ${isRTL ? "text-right" : "text-left"} border-2 border-white/20 focus:border-blue-400 
+                      pl-4 pr-12 py-3 text-base md:text-lg ${isRTL ? "text-right" : "text-left"}
+                      border-2 border-white/20 focus:border-blue-400 
                       rounded-xl shadow-lg backdrop-blur-md bg-white/95 hover:bg-white transition-all duration-300
                       dark:bg-[#23213a]/90 dark:backdrop-blur-xl dark:text-pink-100 dark:placeholder-pink-300
                       dark:border-pink-700 dark:focus:border-pink-400
@@ -208,20 +230,30 @@ const Index = () => {
                     <button
                       onClick={handleClearSearch}
                       aria-label={t("home.search.clear_search")}
-                      className={`absolute ${isRTL ? "left-3" : "right-3"} top-1/2 transform -translate-y-1/2 text-2xl text-gray-400 hover:text-blue-600 transition`}
+                      className={`absolute ${isRTL ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-2xl text-gray-400 hover:text-blue-600 transition`}
                     >×</button>
                   )}
                 </div>
               </div>
+
+              {/* פס יתרונות קטן - רק במובייל */}
               <div className="flex md:hidden gap-2 flex-wrap justify-center items-center mb-3">
-                <span className="bg-gradient-to-r from-blue-200 to-purple-200 text-blue-900 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">{t("home.benefits.free_access")}</span>
-                <span className="bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">{t("home.benefits.no_payment")}</span>
-                <span className="bg-gradient-to-r from-blue-50 to-pink-100 text-violet-900 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">{t("home.benefits.by_students")}</span>
+                <span className="bg-gradient-to-r from-blue-200 to-purple-200 text-blue-900 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">
+                  {t("home.benefits.free_access")}
+                </span>
+                <span className="bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">
+                  {t("home.benefits.no_payment")}
+                </span>
+                <span className="bg-gradient-to-r from-blue-50 to-pink-100 text-violet-900 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">
+                  {t("home.benefits.by_students")}
+                </span>
               </div>
-              {/* Carousel, search, paging dots etc ... (לא שיניתי כאן כלום, זה הלוגיקה שלך!) */}
+
+              {/* ================== קרוסלה ================== */}
               {!isLoading && !isSearch && carouselCourses.length > 0 && (
                 <>
                   <div className="w-full mt-1 mb-2 max-w-7xl mx-auto flex items-center relative">
+                    {/* חץ קודם */}
                     {sliderLoaded && carouselCourses.length > 1 && (
                       <Button
                         variant="ghost"
@@ -238,11 +270,9 @@ const Index = () => {
                         </svg>
                       </Button>
                     )}
-                    <div
-                      ref={sliderRef}
-                      className="keen-slider flex-1 px-0 sm:px-4"
-                    >
-                      {carouselCourses.map((course, idx) => (
+
+                    <div ref={sliderRef} className="keen-slider flex-1 px-0 sm:px-4">
+                      {carouselCourses.map((course: any) => (
                         <div
                           className="keen-slider__slide flex justify-center"
                           key={course.id}
@@ -251,12 +281,12 @@ const Index = () => {
                           onMouseLeave={() => setPauseCarousel(false)}
                         >
                           <Card
-                            className={`
+                            className="
                               card w-[95vw] xs:w-[89vw] max-w-[350px] md:w-[210px] lg:w-[240px]
                               rounded-2xl bg-white/95 dark:bg-gradient-to-br dark:from-[#292346]/90 dark:to-[#3b235a]/90
                               hover:shadow-xl hover:scale-[1.04] cursor-pointer transition-all duration-300
                               shadow group flex-shrink-0 relative border-2 border-white/50 dark:border-pink-400/40
-                            `}
+                            "
                             style={{ minHeight: 152 }}
                             onClick={() => handleCourseClick(course.id)}
                           >
@@ -264,17 +294,20 @@ const Index = () => {
                               <CardTitle className="text-base md:text-lg font-bold truncate dark:text-pink-100 group-hover:text-blue-600 dark:group-hover:text-pink-300">
                                 {getLocalizedText(course)}
                               </CardTitle>
+
                               {course.code && (
                                 <Badge className="bg-blue-100 text-blue-800 dark:bg-pink-500/30 dark:text-pink-100 text-xs font-bold px-2 py-1 mt-1">
                                   {course.code}
                                 </Badge>
                               )}
+
                               {isPopular(course) && !savedCourseIds.has(course.id) && (
                                 <span className="absolute left-3 top-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow drop-shadow-md border border-white/70">
                                   {t("home.course.popular")}
                                 </span>
                               )}
                             </CardHeader>
+
                             <CardContent className="pt-0 pb-4 px-5 space-y-2">
                               {course.semester && (
                                 <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-pink-200">
@@ -282,14 +315,14 @@ const Index = () => {
                                   <span>{t("home.course.semester_label")} {course.semester}</span>
                                 </div>
                               )}
+
                               {course.exam_date && (
                                 <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-purple-200">
                                   <Calendar className="w-5 h-5 dark:text-pink-300" />
-                                  <span>
-                                    {t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}
-                                  </span>
+                                  <span>{t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}</span>
                                 </div>
                               )}
+
                               {course.enable_collaboration && (
                                 <div className="flex items-center gap-2 text-xs md:text-sm text-green-600 dark:text-pink-400">
                                   <Users className="w-5 h-5 dark:text-pink-400" />
@@ -297,15 +330,22 @@ const Index = () => {
                                 </div>
                               )}
                             </CardContent>
+
                             {!savedCourseIds.has(course.id) && (
                               <div className="absolute left-3 bottom-3 z-10">
-                                <SaveToAccountButton courseId={course.id} courseName={getLocalizedText(course)} compact />
+                                <SaveToAccountButton
+                                  courseId={course.id}
+                                  courseName={getLocalizedText(course)}
+                                  compact
+                                />
                               </div>
                             )}
                           </Card>
                         </div>
                       ))}
                     </div>
+
+                    {/* חץ הבא */}
                     {sliderLoaded && carouselCourses.length > 1 && (
                       <Button
                         variant="ghost"
@@ -316,13 +356,14 @@ const Index = () => {
                       >
                         <svg width="30" height="30" fill="none" viewBox="0 0 24 24">
                           {isRTL
-                                             ? <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            ? <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             : <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                           }
                         </svg>
                       </Button>
                     )}
                   </div>
+
                   {/* paging dots & חיווי swipe במובייל */}
                   <div className="flex flex-col items-center md:hidden mb-4">
                     {carouselCourses.length > 1 && (
@@ -331,7 +372,7 @@ const Index = () => {
                           {t("home.carousel.swipe_hint")}
                         </div>
                         <div className="flex justify-center gap-1">
-                          {carouselCourses.map((_, idx) => (
+                          {carouselCourses.map((_: any, idx: number) => (
                             <span
                               key={idx}
                               className={`
@@ -346,10 +387,11 @@ const Index = () => {
                   </div>
                 </>
               )}
+
               {/* תוצאות חיפוש */}
               {!isLoading && isSearch && filteredCourses.length > 0 && (
                 <div className="w-full mt-5 mb-6 grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                  {filteredCourses.map((course) => (
+                  {filteredCourses.map((course: any) => (
                     <Card
                       key={course.id}
                       className="
@@ -381,6 +423,7 @@ const Index = () => {
                           </p>
                         )}
                       </CardHeader>
+
                       <CardContent className="pt-0 pb-4 px-6 space-y-2">
                         {course.semester && (
                           <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-pink-200">
@@ -391,9 +434,7 @@ const Index = () => {
                         {course.exam_date && (
                           <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-purple-200">
                             <Calendar className="w-5 h-5 dark:text-pink-300" />
-                            <span>
-                              {t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}
-                            </span>
+                            <span>{t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}</span>
                           </div>
                         )}
                         {course.enable_collaboration && (
@@ -408,10 +449,7 @@ const Index = () => {
                             dark:from-pink-500 dark:to-purple-800 dark:hover:from-pink-400 dark:hover:to-purple-900
                             dark:text-white dark:font-bold dark:shadow-pink-700/40
                           "
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCourseClick(course.id);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleCourseClick(course.id); }}
                         >
                           {t("home.course.view_details")}
                         </Button>
@@ -420,6 +458,7 @@ const Index = () => {
                   ))}
                 </div>
               )}
+
               {/* אפס תוצאות */}
               {!isLoading && filteredCourses.length === 0 && (
                 <div className="text-center py-6">
@@ -428,23 +467,23 @@ const Index = () => {
                   </div>
                 </div>
               )}
-              {/* כפתור מעבר לכל הקורסים */}
-              {!isSearch && courses.length > 0 && (
-                <div className="flex justify-center mt-4 mb-3 w-full sticky bottom-0 z-30">
-                  <Button
-                    className="rounded-xl px-8 py-3 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:scale-105 transition"
-                    onClick={scrollToCourses}
-                    style={{ width: "96%", maxWidth: 380 }}
-                  >
-                    {t("home.courses.all_courses_button")}
-                  </Button>
-                </div>
-              )}
-              {/* Spacer נוסף במובייל – דוחף הכפתור ממש לתחתית גם עם מקשים פתוחים */}
-              <div className="block md:hidden" style={{ minHeight: 36 }} />
             </div>
+
+            {/* הכפתור – בתחתית הסקשן (לא צף) */}
+            {!isSearch && courses.length > 0 && (
+              <div className="flex justify-center w-full mb-3 mt-4 px-2">
+                <Button
+                  className="rounded-xl px-8 py-3 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:scale-105 transition"
+                  onClick={scrollToCourses}
+                  style={{ width: "100%", maxWidth: 380 }}
+                >
+                  {t("home.courses.all_courses_button")}
+                </Button>
+              </div>
+            )}
           </section>
-          {/* Section כל הקורסים – מלא */}
+
+          {/* ========================= כל הקורסים ========================= */}
           <section
             className="py-8 md:py-16 bg-white/95 backdrop-blur-sm dark:bg-[#251e35]/90 dark:backdrop-blur-2xl transition-all duration-500"
             ref={coursesSectionRef}
@@ -458,14 +497,15 @@ const Index = () => {
                   {t("home.course.all_courses_sub")}
                 </p>
               </div>
+
               {isLoading ? (
                 <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-14 h-14 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4 dark:border-pink-900 dark:border-t-pink-400"></div>
+                  <div className="inline-flex items-center justify-center w-14 h-14 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4 dark:border-pink-900 dark:border-t-pink-400" />
                   <div className="text-lg text-gray-600 dark:text-pink-200">{t("home.courses.loading")}</div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-                  {courses.map((course) => (
+                  {courses.map((course: any) => (
                     <Card
                       key={course.id}
                       className="
@@ -497,6 +537,7 @@ const Index = () => {
                           </p>
                         )}
                       </CardHeader>
+
                       <CardContent className="pt-0 pb-4 px-6 space-y-2">
                         {course.semester && (
                           <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-pink-200">
@@ -507,9 +548,7 @@ const Index = () => {
                         {course.exam_date && (
                           <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-purple-200">
                             <Calendar className="w-5 h-5 dark:text-pink-300" />
-                            <span>
-                              {t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}
-                            </span>
+                            <span>{t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}</span>
                           </div>
                         )}
                         {course.enable_collaboration && (
@@ -524,10 +563,7 @@ const Index = () => {
                             dark:from-pink-500 dark:to-purple-800 dark:hover:from-pink-400 dark:hover:to-purple-900
                             dark:text-white dark:font-bold dark:shadow-pink-700/40
                           "
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCourseClick(course.id);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleCourseClick(course.id); }}
                         >
                           {t("home.course.view_details")}
                         </Button>
@@ -536,6 +572,7 @@ const Index = () => {
                   ))}
                 </div>
               )}
+
               {!isLoading && courses.length === 0 && (
                 <div className="text-center py-8">
                   <div className="text-lg text-gray-600 mb-2 dark:text-pink-200">
@@ -546,9 +583,11 @@ const Index = () => {
             </div>
           </section>
         </main>
+
         <Footer />
       </div>
-      {/* CSS - תוספות מובייל לתחתית הכפתור */}
+
+      {/* CSS מותאם לכל מובייל + תיקונים ספציפיים */}
       <style>{`
         @keyframes gradient-shift {
           0% { background-position: 0% 50%; }
@@ -556,6 +595,7 @@ const Index = () => {
           100% { background-position: 0% 50%; }
         }
         .animate-gradient-shift { animation: gradient-shift 10s ease-in-out infinite; }
+
         .hero-title-enhanced {
           background: rgba(255,255,255,0.13);
           backdrop-filter: blur(18px);
@@ -567,9 +607,11 @@ const Index = () => {
         @media (min-width: 768px) {
           .hero-title-enhanced { padding: 2.2rem 2.8rem; }
         }
+
         .main-header-override .dark\\:bg-gradient-to-b {
           border-radius: 0 !important;
         }
+
         .sticky-search {
           position: static;
           top: 0;
@@ -583,35 +625,45 @@ const Index = () => {
           box-shadow: 0 3px 12px 0 rgba(185,110,255,0.07);
           border-radius: 1rem;
         }
+
+        /* --- מובייל --- */
         @media (max-width: 767px) {
+          /* גובה מלא אמיתי של המסך */
+          .hero-safe {
+            min-height: 100dvh !important;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* הכפתור למטה */
+            padding-bottom: env(safe-area-inset-bottom, 12px);
+          }
+
           .keen-slider__slide > .card {
             min-width: 92vw !important;
             max-width: 99vw !important;
             margin-left: 1vw;
             margin-right: 1vw;
           }
+
           html, body, #root, .min-h-screen {
             min-height: 100vh !important;
             height: 100dvh !important;
             box-sizing: border-box;
             overscroll-behavior: none;
           }
-          /* תוספת רווח אחרי הכפתור */
-          .flex.justify-center.mt-4.mb-3.w-full.sticky.bottom-0 {
-            padding-bottom: env(safe-area-inset-bottom, 24px);
-            background: linear-gradient(180deg, rgba(255,255,255,0.04) 40%, #f8dbec 100%);
-          }
         }
+
+        /* תיקוני גובה לאייפון/ספארי */
         @supports (-webkit-touch-callout: none) {
           html, body, #root, .min-h-screen {
             min-height: -webkit-fill-available !important;
             height: -webkit-fill-available !important;
           }
         }
+
+        /* פיקס למסכים קטנים מאוד */
         @media (max-width: 350px) {
-          .keen-slider__slide > .card {
-            min-width: 96vw !important;
-          }
+          .keen-slider__slide > .card { min-width: 96vw !important; }
         }
       `}</style>
     </div>
