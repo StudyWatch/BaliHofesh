@@ -12,10 +12,7 @@ import { useAuth } from '@/contexts/AuthProvider';
 import { usePublicInstitution, usePublicCourses } from "@/hooks/usePublicData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  BookOpen, Calendar, Users, Search, Gift, Zap,
-  HeartHandshake, ShoppingCart
-} from "lucide-react";
+import { BookOpen, Calendar, Users, Search, Gift, Zap, HeartHandshake, ShoppingCart } from "lucide-react";
 import WelcomeBanner from "@/components/WelcomeBanner";
 import SaveToAccountButton from "@/components/course/SaveToAccountButton";
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -38,7 +35,6 @@ const Index: React.FC = () => {
   const { user } = useAuth();
   const { t, language, dir, isRTL, getLocalizedText, formatLocalizedDate } = useLanguage();
 
-  // Benefits (i18n)
   const benefits = [
     { icon: <Gift size={22} />, label: t("home.benefits.discounts") },
     { icon: <ShoppingCart size={22} />, label: t("home.benefits.store") },
@@ -71,7 +67,7 @@ const Index: React.FC = () => {
   const otherCourses = courses.filter((c: any) => !savedCourseIds.has(c.id) && !isPopular(c));
   const carouselCourses = [...savedCourses, ...popularCourses, ...otherCourses].slice(0, 12);
 
-  // תוצאות חיפוש
+  // חיפוש
   const isSearch = searchTerm.trim() !== "";
   const filteredCourses = isSearch
     ? courses.filter(
@@ -106,15 +102,12 @@ const Index: React.FC = () => {
 
   const coursesSectionRef = useRef<HTMLDivElement | null>(null);
   const scrollToCourses = () => {
-    if (coursesSectionRef.current) {
-      coursesSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    coursesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const handleClearSearch = () => setSearchTerm("");
 
-  // חיפוש sticky
+  // Sticky search (מובייל)
   const searchRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     if (window.innerWidth > 767) return;
     const el = searchRef.current;
@@ -130,6 +123,39 @@ const Index: React.FC = () => {
   useEffect(() => {
     if (!searchTerm && window.innerWidth < 768) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [searchTerm]);
+
+  // ===== גובה דינמי ל־Hero כך שהכפתור יישב בתחתית המסך במובייל =====
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const welcomeRef = useRef<HTMLDivElement | null>(null);
+  const [heroMinPx, setHeroMinPx] = useState<number | null>(null);
+
+  useEffect(() => {
+    const vv = typeof window !== "undefined" && (window as any).visualViewport;
+
+    const measure = () => {
+      const isMobile = window.innerWidth < 768;
+      if (!isMobile) {
+        setHeroMinPx(null); // בדסקטופ - לפי ברירת מחדל (נראה טוב אצלך)
+        return;
+      }
+      const vh = vv?.height ?? window.innerHeight;
+      const headerH = headerRef.current?.offsetHeight ?? 0;
+      const welcomeH = welcomeRef.current?.offsetHeight ?? 0;
+      const min = Math.max(360, Math.floor(vh - headerH - welcomeH));
+      setHeroMinPx(min);
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    vv?.addEventListener("resize", measure);
+
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      vv?.removeEventListener?.("resize", measure);
+    };
+  }, []);
 
   return (
     <div
@@ -163,24 +189,29 @@ const Index: React.FC = () => {
 
       <div className="relative z-10">
         {/* Header */}
-        <div className="main-header-override">
+        <div className="main-header-override" ref={headerRef}>
           <Header />
         </div>
 
-        {!user && <WelcomeBanner />}
+        {/* Welcome (אם אין משתמש) */}
+        <div ref={welcomeRef}>{!user && <WelcomeBanner />}</div>
 
         <main className="flex-1 flex flex-col">
-          {/* ========================= HERO (fills phone screen) ========================= */}
+          {/* ====================== HERO — ממלא את יתרת המסך במובייל ====================== */}
           <section
             className="
               hero-safe
               pt-4 pb-0 md:py-14
               bg-transparent
               flex flex-col justify-between
-              min-h-[100dvh] md:min-h-[calc(100vh-168px)]
+              md:min-h-[calc(100vh-168px)]
             "
+            style={{
+              // במובייל נשתמש בחישוב מדויק: גובה מסך נראה פחות הגבהים של ההדר/וולקאם
+              minHeight: heroMinPx ? `${heroMinPx}px` : undefined,
+            }}
           >
-            {/* תוכן ה־Hero */}
+            {/* תוכן עליון */}
             <div className="container mx-auto px-2 flex flex-col items-center text-center flex-1">
               <div className="hero-title-enhanced mb-3 w-full md:w-3/4">
                 <h1
@@ -193,7 +224,7 @@ const Index: React.FC = () => {
                   {t("home.hero.subtitle")}
                 </p>
 
-                {/* פס יתרונות - מוסתר במובייל */}
+                {/* פס יתרונות - דסקטופ בלבד */}
                 <div className="hidden md:flex flex-wrap gap-3 justify-center mt-6 mb-1">
                   {benefits.map((b, i) => (
                     <span
@@ -236,8 +267,8 @@ const Index: React.FC = () => {
                 </div>
               </div>
 
-              {/* פס יתרונות קטן - רק במובייל */}
-              <div className="flex md:hidden gap-2 flex-wrap justify-center items-center mb-3">
+              {/* פס יתרונות קטן - מובייל */}
+              <div className="flex md:hidden gap-2 flex-wrap justify-center items-center mb-2">
                 <span className="bg-gradient-to-r from-blue-200 to-purple-200 text-blue-900 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">
                   {t("home.benefits.free_access")}
                 </span>
@@ -249,7 +280,7 @@ const Index: React.FC = () => {
                 </span>
               </div>
 
-              {/* ================== קרוסלה ================== */}
+              {/* === קרוסלה (אם אין חיפוש) === */}
               {!isLoading && !isSearch && carouselCourses.length > 0 && (
                 <>
                   <div className="w-full mt-1 mb-2 max-w-7xl mx-auto flex items-center relative">
@@ -364,8 +395,8 @@ const Index: React.FC = () => {
                     )}
                   </div>
 
-                  {/* paging dots & חיווי swipe במובייל */}
-                  <div className="flex flex-col items-center md:hidden mb-4">
+                  {/* paging dots (מובייל) */}
+                  <div className="flex flex-col items-center md:hidden mb-2">
                     {carouselCourses.length > 1 && (
                       <>
                         <div className="text-xs text-gray-600 dark:text-pink-200 mb-1 select-none">
@@ -388,9 +419,9 @@ const Index: React.FC = () => {
                 </>
               )}
 
-              {/* תוצאות חיפוש */}
+              {/* תוצאות חיפוש (מקטין מרווחי תחתית כדי שהכפתור ייראה) */}
               {!isLoading && isSearch && filteredCourses.length > 0 && (
-                <div className="w-full mt-5 mb-6 grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                <div className="w-full mt-4 mb-4 grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                   {filteredCourses.map((course: any) => (
                     <Card
                       key={course.id}
@@ -417,11 +448,6 @@ const Index: React.FC = () => {
                             </Badge>
                           )}
                         </div>
-                        {course.name_en && language === 'en' && (
-                          <p className="text-xs md:text-sm text-gray-500 dark:text-pink-200 mt-1 font-medium">
-                            {course.name_en}
-                          </p>
-                        )}
                       </CardHeader>
 
                       <CardContent className="pt-0 pb-4 px-6 space-y-2">
@@ -461,7 +487,7 @@ const Index: React.FC = () => {
 
               {/* אפס תוצאות */}
               {!isLoading && filteredCourses.length === 0 && (
-                <div className="text-center py-6">
+                <div className="text-center py-4">
                   <div className="text-lg text-gray-600 mb-2 dark:text-pink-200">
                     {isSearch ? t("home.courses.no_results") : t("home.courses.no_courses")}
                   </div>
@@ -469,21 +495,28 @@ const Index: React.FC = () => {
               )}
             </div>
 
-            {/* הכפתור – בתחתית הסקשן (לא צף) */}
+            {/* === הכפתור — תמיד בתוך ה־Hero בתחתית (נראה בפתיחה) === */}
             {!isSearch && courses.length > 0 && (
-              <div className="flex justify-center w-full mb-3 mt-4 px-2">
-                <Button
-                  className="rounded-xl px-8 py-3 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:scale-105 transition"
-                  onClick={scrollToCourses}
-                  style={{ width: "100%", maxWidth: 380 }}
-                >
-                  {t("home.courses.all_courses_button")}
-                </Button>
+              <div
+                className="w-full px-2 pt-2"
+                style={{
+                  paddingBottom: "env(safe-area-inset-bottom, 8px)",
+                }}
+              >
+                <div className="flex justify-center w-full">
+                  <Button
+                    className="rounded-xl px-8 py-3 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:scale-105 transition"
+                    onClick={scrollToCourses}
+                    style={{ width: "100%", maxWidth: 380 }}
+                  >
+                    {t("home.courses.all_courses_button")}
+                  </Button>
+                </div>
               </div>
             )}
           </section>
 
-          {/* ========================= כל הקורסים ========================= */}
+          {/* ====================== כל הקורסים ====================== */}
           <section
             className="py-8 md:py-16 bg-white/95 backdrop-blur-sm dark:bg-[#251e35]/90 dark:backdrop-blur-2xl transition-all duration-500"
             ref={coursesSectionRef}
@@ -628,14 +661,12 @@ const Index: React.FC = () => {
 
         /* --- מובייל --- */
         @media (max-width: 767px) {
-          /* גובה מלא אמיתי של המסך */
           .hero-safe {
-            min-height: 100dvh !important;
-            height: auto;
+            /* הגובה בפועל נמצא בג'אווהסקריפט ושם ב-style, זה רק fallback */
+            min-height: 100svh;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* הכפתור למטה */
-            padding-bottom: env(safe-area-inset-bottom, 12px);
+            justify-content: space-between;
           }
 
           .keen-slider__slide > .card {
@@ -653,7 +684,7 @@ const Index: React.FC = () => {
           }
         }
 
-        /* תיקוני גובה לאייפון/ספארי */
+        /* תיקוני iOS */
         @supports (-webkit-touch-callout: none) {
           html, body, #root, .min-h-screen {
             min-height: -webkit-fill-available !important;
@@ -661,7 +692,7 @@ const Index: React.FC = () => {
           }
         }
 
-        /* פיקס למסכים קטנים מאוד */
+        /* מסכים ממש קטנים */
         @media (max-width: 350px) {
           .keen-slider__slide > .card { min-width: 96vw !important; }
         }

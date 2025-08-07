@@ -79,18 +79,26 @@ const TutorRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 // -- ספקים לכל החנות --
-const StoreProviders: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => (
+const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <CartProvider>
     <WishlistProvider>{children}</WishlistProvider>
   </CartProvider>
 );
 
-// -- קומפוננטת תחזוקה וסיסמה --
+/* =========================
+   תחזוקה + סיסמה (מופעל ע"י ENV)
+   ========================= */
 const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => {
-  const underMaintenance = true;
-  const secretPassword = "A1m2i3r4";
+  // שליטה דרך משתני סביבה (Vercel → Project → Settings → Environment Variables)
+  const underMaintenance =
+    (import.meta.env.VITE_MAINTENANCE_ENABLED ?? "false").toString() === "true";
+  const secretPassword = (import.meta.env.VITE_PREVIEW_PASSWORD as string) || "A1m2i3r4";
+
+  // אם תחזוקה כבויה – אל תחסום כלום (חשוב לאימות FlexOffers/בוטים)
+  if (!underMaintenance) {
+    return <>{children}</>;
+  }
+
   const [authorized, setAuthorized] = React.useState<boolean | null>(null);
   const [password, setPassword] = React.useState("");
 
@@ -98,7 +106,7 @@ const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => 
     const saved = localStorage.getItem("preview_password");
     if (saved === secretPassword) setAuthorized(true);
     else setAuthorized(false);
-  }, []);
+  }, [secretPassword]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -118,7 +126,8 @@ const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => 
       </div>
     );
   }
-  if (underMaintenance && !authorized) {
+
+  if (!authorized) {
     return (
       <div
         dir="rtl"
