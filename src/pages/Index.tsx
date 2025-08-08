@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+// src/pages/Index.tsx
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useKeenSlider } from "keen-slider/react";
 import "keen-slider/keen-slider.min.css";
 import { useNavigate } from "react-router-dom";
@@ -8,38 +9,125 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useAuth } from '@/contexts/AuthProvider';
+import { useAuth } from "@/contexts/AuthProvider";
 import { usePublicInstitution, usePublicCourses } from "@/hooks/usePublicData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { BookOpen, Calendar, Users, Search, Gift, Zap, HeartHandshake, ShoppingCart } from "lucide-react";
+import {
+  BookOpen, Calendar, Users, Search, Gift, Zap, HeartHandshake, ShoppingCart
+} from "lucide-react";
 import WelcomeBanner from "@/components/WelcomeBanner";
 import SaveToAccountButton from "@/components/course/SaveToAccountButton";
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage } from "@/contexts/LanguageContext";
 
+/** ——— הגדרות כלליות ——— */
+
+// מילות מפתח לפופולרי
 const popularCoursesKeywords = [
   "בדידה","אלגברה לינארית","אינפי","אינפי 1","אינפיניטסמלי","חשבון","לוגיקה","ממן","מבוא","סטטיסטיקה"
 ];
-function isPopular(course:any) {
-  const name = `${course.name_he} ${course.name_en || ""}`.toLowerCase();
+const isPopular = (course: any) => {
+  const name = `${course.name_he || ""} ${course.name_en || ""}`.toLowerCase();
   return popularCoursesKeywords.some((kw) => name.includes(kw.toLowerCase()));
+};
+
+// זיהוי סמסטר קיץ
+const isSummer = (semester?: string | null) => !!semester && /קיץ|summer/i.test(semester || "");
+
+// נרמול חיפוש (מסיר ניקוד בעברית)
+const norm = (s: string) =>
+  s.normalize("NFKD").replace(/[\u0591-\u05C7]/g, "").toLowerCase();
+
+// זיהוי תחום/קטגוריה (עדיפות חזקה למדמ"ח/מתמטיקה)
+function detectSubject(course: any): string {
+  const cat = (course.category || "").trim();
+  if (cat) return cat;
+  const name = `${course.name_he || ""} ${course.name_en || ""}`.toLowerCase();
+
+  if (/(מדעי.?ה.?מחשב|מחשבים|תכנות|סייבר|computer|programming|cs|cyber)/i.test(name)) return "מדעי המחשב";
+  if (/(מתמטיקה|math|אלגברה|בדידה|סטטיסטיקה|calculus|algebra|discrete|statistics)/i.test(name)) return "מתמטיקה";
+  if (/(פיזיקה|physics)/i.test(name)) return "פיזיקה";
+  if (/(כימיה|chemistry)/i.test(name)) return "כימיה";
+  if (/(הנדסת תעשייה וניהול|תעשייה וניהול|industrial|management)/i.test(name)) return "הנדסת תעשייה וניהול";
+  if (/(מדעי החיים|ביולוגיה|biology|life sciences)/i.test(name)) return "מדעי החיים";
+  if (/(כלכלה|economics)/i.test(name)) return "כלכלה";
+  if (/(חינוך|education)/i.test(name)) return "חינוך";
+  if (/(משפטים|law|juris)/i.test(name)) return "משפטים";
+  if (/(מדעי החברה|sociology|society|psychology|פסיכולוגיה)/i.test(name)) return "מדעי החברה";
+  if (/(מדעי הרוח|history|literature|phil(?!ip)|philosophy|היסטוריה|ספרות|פילוסופיה)/i.test(name)) return "מדעי הרוח";
+  return "אחר";
 }
-// זיהוי "קיץ" גם באנגלית (ליתר ביטחון)
-const isSummer = (semester?: string | null) =>
-  !!semester && /קיץ|summer/i.test(semester);
+
+// משקלי עדיפות לפי תחום
+const subjectWeight = (subj: string) => {
+  switch (subj) {
+    case "מדעי המחשב": return 12;
+    case "מתמטיקה": return 11;
+    case "פיזיקה": return 7;
+    case "כימיה": return 5;
+    case "הנדסת תעשייה וניהול": return 5;
+    default: return 2;
+  }
+};
+
+// ניקוד חיפוש (קיץ/קוד/שם) + חיזוק לשמורים ולתחומים חשובים
+function searchScore(
+  course: any,
+  term: string,
+  getText: (c: any) => string,
+  isSaved: (id: any) => boolean
+) {
+  if (!term) return 0;
+  const name = norm(getText(course));
+  const code = (course.code || "").toString().toLowerCase();
+  const t = norm(term);
+
+  let score = 0;
+  if (isSaved(course.id)) score += 1400;                    // 🔝 שמור קודם
+  if (isSummer(course.semester)) score += 1000;             // 🔝 קיץ
+  score += subjectWeight(detectSubject(course)) * 80;       // תחום
+  if (code === t) score += 500;
+  else if (code.startsWith(t)) score += 350;
+  if (name === t) score += 300;
+  else if (name.startsWith(t)) score += 220;
+  else if (name.includes(t)) score += 120;
+  return score;
+}
 
 const Index = () => {
+  // ——— סטייטים עיקריים ———
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedTerm, setDebouncedTerm] = useState(""); // דה־באונס לחיפוש
   const [sliderLoaded, setSliderLoaded] = useState(false);
   const [pauseCarousel, setPauseCarousel] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // פילטר קורסים בסקשן התחתון (מובייל/דסקטופ OK, ברירת מחדל – קיץ)
-  const [coursesFilter, setCoursesFilter] = useState<"summer" | "all">("summer");
+  // פילטר הסקשן התחתון – נשמר ב־URL (ברירת מחדל: קיץ)
+  const [coursesFilter, setCoursesFilter] = useState<"summer" | "all">(() => {
+    const p = new URLSearchParams(window.location.search).get("filter");
+    return p === "all" ? "all" : "summer";
+  });
+  const setFilter = (f: "summer" | "all") => {
+    setCoursesFilter(f);
+    const url = new URL(window.location.href);
+    url.searchParams.set("filter", f);
+    window.history.replaceState({}, "", url);
+  };
 
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, language, dir, isRTL, getLocalizedText, formatLocalizedDate } = useLanguage();
+
+  const collator = useMemo(
+    () => new Intl.Collator(language === "he" ? "he" : "en", { sensitivity: "base" }),
+    [language]
+  );
+
+  // העדפת תנועה מצומצמת – לעצור אוטופליי אם צריך
+  const prefersReducedMotion = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+  }, []);
 
   const benefits = [
     { icon: <Gift size={22} />, label: t("home.benefits.discounts") },
@@ -49,59 +137,112 @@ const Index = () => {
     { icon: <Users size={22} />, label: t("home.benefits.community") },
   ];
 
+  // ——— דאטה ציבורי ———
   const { data: openUniversity, isLoading: isLoadingInstitution } = usePublicInstitution();
   const { data: courses = [], isLoading: isLoadingCourses } = usePublicCourses(openUniversity?.id);
   const isLoading = isLoadingInstitution || isLoadingCourses;
 
+  // ——— קורסים שמורים ———
   const { data: savedCoursesData = [] } = useQuery({
     queryKey: ["user-saved-courses", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data } = await supabase.from("user_course_progress").select("course_id").eq("user_id", user.id);
-      return (data?.map((row) => row.course_id) ?? []);
-    }
+      const { data } = await supabase
+        .from("user_course_progress")
+        .select("course_id")
+        .eq("user_id", user!.id);
+      return data?.map((row) => row.course_id) ?? [];
+    },
   });
 
-  const savedCourseIds = new Set(savedCoursesData);
-  const savedCourses   = courses.filter((c:any) => savedCourseIds.has(c.id));
-  const popularCourses = courses.filter((c:any) => isPopular(c) && !savedCourseIds.has(c.id));
-  const otherCourses   = courses.filter((c:any) => !savedCourseIds.has(c.id) && !isPopular(c));
-  const carouselCourses = [...savedCourses, ...popularCourses, ...otherCourses].slice(0, 12);
+  // Set תקני של מזהים (string)
+  const savedCourseIds = useMemo(
+    () => new Set((savedCoursesData || []).map((id: any) => String(id))),
+    [savedCoursesData]
+  );
+  const isSaved = (id: any) => savedCourseIds.has(String(id));
 
-  const isSearch = searchTerm.trim() !== "";
-  const filteredCourses = isSearch
-    ? courses.filter((course:any) =>
-        getLocalizedText(course).toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.code?.toLowerCase().includes(searchTerm.toLowerCase()))
-    : courses;
+  // ——— דה־באונס לחיפוש ———
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedTerm(searchTerm.trim()), 160);
+    return () => clearTimeout(id);
+  }, [searchTerm]);
 
+  const normalizedTerm = debouncedTerm;
+  const isSearch = normalizedTerm !== "";
+
+  // ——— בניית סדר עדיפויות לתצוגה כשאין חיפוש ———
+  const savedCourses = useMemo(() => courses.filter((c: any) => isSaved(c.id)), [courses, savedCourseIds]);
+  const unsavedCourses = useMemo(() => courses.filter((c: any) => !isSaved(c.id)), [courses, savedCourseIds]);
+
+  // ניקוד ל"בלי חיפוש": תחום>פופולרי>קיץ (כדי לקדם מתמטיקה/מדמ"ח בראש)
+  const scoredUnsaved = useMemo(
+    () =>
+      unsavedCourses
+        .map((c: any) => {
+          let w = 0;
+          w += subjectWeight(detectSubject(c)) * 100;
+          if (isPopular(c)) w += 40;
+          if (isSummer(c.semester)) w += 20;
+          return { c, w };
+        })
+        .sort((a, b) => b.w - a.w || collator.compare(norm(getLocalizedText(a.c)), norm(getLocalizedText(b.c)))),
+    [unsavedCourses, collator, getLocalizedText]
+  );
+
+  // קרוסלה: קודם שמורים, ואז הממוינים לפי עדיפות
+  const carouselCourses = useMemo(
+    () => [...savedCourses, ...scoredUnsaved.map((x) => x.c)].slice(0, 12),
+    [savedCourses, scoredUnsaved]
+  );
+
+  // ——— חיפוש מדורג: שמורים/קיץ/תחום/קוד/שם ———
+  const searchResults = useMemo(() => {
+    if (!isSearch) return [];
+    const results = courses.filter((course: any) => {
+      const text = norm(getLocalizedText(course));
+      const code = (course.code || "").toString().toLowerCase();
+      const q = norm(normalizedTerm);
+      return text.includes(q) || code.includes(q);
+    });
+    return results
+      .map((c: any) => ({ c, s: searchScore(c, normalizedTerm, getLocalizedText, isSaved) }))
+      .sort((a, b) => b.s - a.s || collator.compare(norm(getLocalizedText(a.c)), norm(getLocalizedText(b.c))))
+      .map(({ c }) => c);
+  }, [isSearch, courses, normalizedTerm, getLocalizedText, collator]);
+
+  // ——— קרוסלה ———
   const [sliderRef, instanceRef] = useKeenSlider({
     loop: true,
     rtl: isRTL,
     slides: { perView: 1, spacing: 12 },
     breakpoints: {
       "(min-width: 480px)": { slides: { perView: 2, spacing: 16 } },
-      "(min-width: 768px)": { slides: { perView: 3, spacing: 22 } }, // דסקטופ כמו שאהבת
+      "(min-width: 768px)": { slides: { perView: 3, spacing: 22 } }, // 🖥️ דסקטופ – נשאר כפי שאהבת
       "(min-width: 1100px)": { slides: { perView: 4, spacing: 30 } },
     },
     created: () => setSliderLoaded(true),
-    slideChanged(s) { setCurrentSlide(s.track.details.rel); },
+    slideChanged(s) {
+      setCurrentSlide(s.track.details.rel);
+    },
   });
 
+  // אוטופליי – מכובד ומכבד reduced-motion
   useEffect(() => {
-    if (!sliderLoaded || !instanceRef.current || isSearch || pauseCarousel) return;
+    if (!sliderLoaded || !instanceRef.current || isSearch || pauseCarousel || prefersReducedMotion) return;
     const interval = setInterval(() => instanceRef.current?.next(), 3400);
     return () => clearInterval(interval);
-  }, [sliderLoaded, instanceRef, isSearch, pauseCarousel]);
+  }, [sliderLoaded, instanceRef, isSearch, pauseCarousel, prefersReducedMotion]);
 
-  const handleCourseClick = (courseId:string) => navigate(`/course/${courseId}`);
+  const handleCourseClick = (courseId: string) => navigate(`/course/${courseId}`);
 
-  const coursesSectionRef = useRef<HTMLDivElement|null>(null);
-  const scrollToCourses = () => coursesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const handleClearSearch = () => setSearchTerm("");
+  // ——— גלילה לסקשן כל הקורסים ———
+  const coursesSectionRef = useRef<HTMLDivElement | null>(null);
+  const scrollToCourses = () =>
+    coursesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  const searchRef = useRef<HTMLDivElement|null>(null);
-
+  // ——— חיפוש סטיקי במובייל ———
+  const searchRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (window.innerWidth > 767) return;
     const el = searchRef.current;
@@ -118,23 +259,37 @@ const Index = () => {
     if (!searchTerm && window.innerWidth < 768) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [searchTerm]);
 
-  // קורסים לסקשן התחתון לפי פילטר
-  const coursesForGrid = coursesFilter === "summer"
-    ? courses.filter((c:any) => isSummer(c.semester))
-    : courses;
+  // ——— פילטר קיץ בסקשן התחתון + fallback אם אין קורסי קיץ ———
+  const summerCount = useMemo(
+    () => courses.filter((c: any) => isSummer(c.semester)).length,
+    [courses]
+  );
+  useEffect(() => {
+    if (!isLoading && coursesFilter === "summer" && summerCount === 0) {
+      setFilter("all");
+    }
+  }, [isLoading, coursesFilter, summerCount]);
+
+  const coursesForGrid = useMemo(
+    () => (coursesFilter === "summer" ? courses.filter((c: any) => isSummer(c.semester)) : courses),
+    [coursesFilter, courses]
+  );
+
+  // ——— עזר לניווט מקלדת בקרוסלה בדסקטופ ———
+  const carouselWrapRef = useRef<HTMLDivElement | null>(null);
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden relative font-[Assistant] bg-transparent" dir={dir} lang={language}>
-      {/* רקע מונפש */}
+      {/* ——— רקע מונפש (לייב) ——— */}
       <div className="bg-scene fixed inset-0 z-0 pointer-events-none select-none overflow-hidden">
         <div className="bg-gradient animate-gradient-shift" />
         <span className="blob blob1" />
         <span className="blob blob2" />
         <span className="blob blob3" />
-        <svg className="wave absolute left-0 bottom-0 w-full z-[1]" height="90" viewBox="0 0 1728 90" fill="none" style={{opacity:0.14}}>
+        <svg className="wave absolute left-0 bottom-0 w-full z-[1]" height="90" viewBox="0 0 1728 90" fill="none" style={{ opacity: 0.14 }}>
           <path d="M0 46C263 126 514 38 872 49C1230 60 1512 104 1728 42V90H0V46Z" fill="#fff" />
         </svg>
-        {/* שכבת ורוד חזקה יותר במובייל בלבד */}
+        {/* שכבה ורודה עדינה במובייל כדי שהכפתור לא "יבצבץ" */}
         <div className="mobile-pink-overlay" />
       </div>
 
@@ -145,29 +300,36 @@ const Index = () => {
         {!user && <WelcomeBanner />}
 
         <main className="flex-1 flex flex-col justify-between">
-          {/* Hero */}
+          {/* ——— Hero (מכסה מסך במובייל, ריווח נכון מעל/מתחת לקרוסלה) ——— */}
           <section className="hero-section pt-4 pb-2 md:py-14 bg-transparent flex flex-col justify-between">
             <div className="mx-auto px-2 flex flex-col items-center text-center flex-1 w-full max-w-[1320px]">
               <div className="hero-title-enhanced mb-3 w-full md:w-3/4">
-                <h1 className="text-[1.35rem] sm:text-2xl md:text-5xl font-extrabold text-white mb-1 drop-shadow-2xl dark:text-pink-100" style={{ lineHeight: '1.13' }}>
+                <h1 className="text-[1.35rem] sm:text-2xl md:text-5xl font-extrabold text-white mb-1 drop-shadow-2xl dark:text-pink-100" style={{ lineHeight: "1.13" }}>
                   {t("home.hero.title")}
                 </h1>
                 <p className="text-[0.96rem] md:text-xl text-white/90 mb-2 drop-shadow dark:text-pink-50/90">
                   {t("home.hero.subtitle")}
                 </p>
+                {/* צ'יפים – דסקטופ בלבד */}
                 <div className="hidden md:flex flex-wrap gap-3 justify-center mt-6 mb-1">
-                  {benefits.map((b, i) => (
-                    <span key={i} className="flex items-center gap-2 rounded-full bg-white/30 dark:bg-pink-500/20 px-4 py-2 font-bold text-base md:text-lg text-blue-900 dark:text-pink-50 shadow backdrop-blur-sm border border-white/30">
-                      {b.icon}{b.label}
+                  {[Gift, ShoppingCart, Zap, HeartHandshake, Users].map((Icon, i) => (
+                    <span
+                      key={i}
+                      className="flex items-center gap-2 rounded-full bg-white/30 dark:bg-pink-500/20 px-4 py-2 font-bold text-base md:text-lg text-blue-900 dark:text-pink-50 shadow backdrop-blur-sm border border-white/30"
+                    >
+                      <Icon size={22} />
+                      {benefits[i].label}
                     </span>
                   ))}
                 </div>
               </div>
 
-              {/* חיפוש */}
-              <div ref={searchRef} className="max-w-xl w-full mx-auto mb-4 sticky-search z-20">{/* ↑ ריווח מוגדל במובייל */}
+              {/* ——— חיפוש (סטיקי במובייל) ——— */}
+              <div ref={searchRef} className="max-w-xl w-full mx-auto mb-4 sticky-search z-20">
                 <div className="relative group">
-                  <Search className={`absolute ${isRTL ? "right-4" : "left-4"} top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-pink-200 w-6 h-6 group-focus-within:text-blue-500 transition-colors`} />
+                  <Search
+                    className={`absolute ${isRTL ? "right-4" : "left-4"} top-1/2 -translate-y-1/2 text-gray-400 dark:text-pink-200 w-6 h-6 group-focus-within:text-blue-500 transition-colors`}
+                  />
                   <Input
                     type="text"
                     placeholder={t("home.search.course_placeholder")}
@@ -176,7 +338,13 @@ const Index = () => {
                     className={`pl-4 pr-12 py-3 text-base md:text-lg ${isRTL ? "text-right" : "text-left"} border-2 border-white/20 focus:border-blue-400 rounded-xl shadow-lg backdrop-blur-md bg-white/95 hover:bg-white transition-all duration-300 dark:bg-[#23213a]/90 dark:backdrop-blur-xl dark:text-pink-100 dark:placeholder-pink-300 dark:border-pink-700 dark:focus:border-pink-400`}
                   />
                   {searchTerm && (
-                    <button onClick={handleClearSearch} aria-label={t("home.search.clear_search")} className={`absolute ${isRTL ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-2xl text-gray-400 hover:text-blue-600 transition`}>×</button>
+                    <button
+                      onClick={() => setSearchTerm("")}
+                      aria-label={t("home.search.clear_search")}
+                      className={`absolute ${isRTL ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-2xl text-gray-400 hover:text-blue-600 transition`}
+                    >
+                      ×
+                    </button>
                   )}
                 </div>
               </div>
@@ -188,20 +356,42 @@ const Index = () => {
                 <span className="bg-gradient-to-r from-blue-50 to-pink-100 text-violet-900 font-bold rounded-lg px-3 py-1.5 shadow-md text-xs">{t("home.benefits.by_students")}</span>
               </div>
 
-              {/* קרוסלה */}
+              {/* ——— קרוסלה (כשאין חיפוש) ——— */}
               {!isLoading && !isSearch && carouselCourses.length > 0 && (
                 <>
-                  <div className="w-full mt-2 mb-3 mx-auto flex items-center relative">{/* ↑ ריווח גם לפני וגם אחרי במובייל */}
+                  <div
+                    ref={carouselWrapRef}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowLeft") (isRTL ? instanceRef.current?.next() : instanceRef.current?.prev());
+                      if (e.key === "ArrowRight") (isRTL ? instanceRef.current?.prev() : instanceRef.current?.next());
+                    }}
+                    className="w-full mt-2 mb-3 mx-auto flex items-center relative focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 rounded-xl"
+                  >
+                    {/* חץ אחורה */}
                     {sliderLoaded && carouselCourses.length > 1 && (
-                      <Button variant="ghost" size="icon" aria-label={t("common.previous")} className={`carousel-arrow ${isRTL ? "right-1 md:-right-8" : "left-1 md:-left-8"}`} onClick={() => instanceRef.current?.prev()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("common.previous")}
+                        className={`carousel-arrow ${isRTL ? "right-1 md:-right-8" : "left-1 md:-left-8"}`}
+                        onClick={() => instanceRef.current?.prev()}
+                      >
                         <svg width="28" height="28" fill="none" viewBox="0 0 24 24">
-                          {isRTL ? <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+                          {isRTL ? (
+                            <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          ) : (
+                            <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          )}
                         </svg>
                       </Button>
                     )}
 
-                    <div ref={sliderRef} className="keen-slider flex-1 px-0 sm:px-4">
-                      {carouselCourses.map((course:any) => (
+                    <div
+                      ref={sliderRef}
+                      className="keen-slider flex-1 px-0 sm:px-4"
+                    >
+                      {carouselCourses.map((course: any) => (
                         <div
                           className="keen-slider__slide flex justify-center"
                           key={course.id}
@@ -212,11 +402,13 @@ const Index = () => {
                           onTouchEnd={() => setPauseCarousel(false)}
                         >
                           <Card
-                            className="card w-[95vw] xs:w-[89vw] max-w-[350px] md:w-[210px] lg:w-[240px]
-                                       rounded-2xl bg-white/95 dark:bg-gradient-to-br dark:from-[#292346]/90 dark:to-[#3b235a]/90
-                                       hover:shadow-xl hover:scale-[1.04] cursor-pointer transition-all duration-300
-                                       shadow group flex-shrink-0 relative border-2 border-white/50 dark:border-pink-400/40 overflow-visible"
-                            style={{ minHeight: 158 }}
+                            className="
+                              card w-[95vw] xs:w-[89vw] max-w-[350px] md:w-[210px] lg:w-[240px]
+                              rounded-2xl bg-white/95 dark:bg-gradient-to-br dark:from-[#292346]/90 dark:to-[#3b235a]/90
+                              hover:shadow-xl hover:scale-[1.04] cursor-pointer transition-all duration-300
+                              shadow group flex-shrink-0 relative border-2 border-white/50 dark:border-pink-400/40 overflow-visible
+                            "
+                            style={{ minHeight: 158 }} // ⭐ גובה כרטיס נעים גם במובייל
                             onClick={() => handleCourseClick(course.id)}
                           >
                             <CardHeader className="pb-2 pt-6 md:pt-4 px-5">
@@ -224,10 +416,10 @@ const Index = () => {
                                 {getLocalizedText(course)}
                               </CardTitle>
 
-                              {/* מספר קורס – ממורכז במובייל, רגיל בדסקטופ */}
+                              {/* קוד – ממורכז במובייל */}
                               {course.code && (
                                 <>
-                                  <Badge className="course-code-badge-mobile md:hidden block w-full justify-center bg-blue-100 text-blue-800 dark:bg-pink-500/30 dark:text-pink-100 text-xs font-bold px-2 py-[2px] mt-1">
+                                  <Badge className="md:hidden block w-full justify-center bg-blue-100 text-blue-800 dark:bg-pink-500/30 dark:text-pink-100 text-xs font-bold px-2 py-[2px] mt-1">
                                     {course.code}
                                   </Badge>
                                   <Badge className="hidden md:inline-flex bg-blue-100 text-blue-800 dark:bg-pink-500/30 dark:text-pink-100 text-xs font-bold px-2 py-[2px] mt-1">
@@ -236,26 +428,24 @@ const Index = () => {
                                 </>
                               )}
 
-                              {/* פופולרי – מוגבה, לא מכסה טקסט */}
-                              {isPopular(course) && !savedCourseIds.has(course.id) && (
+                              {/* פופולרי – עולה קצת מעל הכרטיס (לא מכסה טקסט) */}
+                              {isPopular(course) && !isSaved(course.id) && (
                                 <span className="popular-badge">{t("home.course.popular")}</span>
                               )}
                             </CardHeader>
 
                             <CardContent className="pt-0 pb-4 px-5 space-y-2">
-                              {/* סמסטר – תמיד מופיע גם אם ריק */}
+                              {/* סמסטר תמיד מוצג—even אם null */}
                               <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-pink-200">
                                 <BookOpen className="w-5 h-5 dark:text-pink-300" />
                                 <span>{t("home.course.semester_label")} {course.semester ? course.semester : "."}</span>
                               </div>
-
                               {course.exam_date && (
                                 <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-purple-200">
                                   <Calendar className="w-5 h-5 dark:text-pink-300" />
                                   <span>{t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}</span>
                                 </div>
                               )}
-
                               {course.enable_collaboration && (
                                 <div className="flex items-center gap-2 text-xs md:text-sm text-green-600 dark:text-pink-400">
                                   <Users className="w-5 h-5 dark:text-pink-400" />
@@ -264,7 +454,7 @@ const Index = () => {
                               )}
                             </CardContent>
 
-                            {!savedCourseIds.has(course.id) && (
+                            {!isSaved(course.id) && (
                               <div className="absolute left-3 bottom-3 z-10">
                                 <SaveToAccountButton courseId={course.id} courseName={getLocalizedText(course)} compact />
                               </div>
@@ -274,10 +464,21 @@ const Index = () => {
                       ))}
                     </div>
 
+                    {/* חץ קדימה */}
                     {sliderLoaded && carouselCourses.length > 1 && (
-                      <Button variant="ghost" size="icon" aria-label={t("common.next")} className={`carousel-arrow ${isRTL ? "left-1 md:-left-8" : "right-1 md:-right-8"}`} onClick={() => instanceRef.current?.next()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("common.next")}
+                        className={`carousel-arrow ${isRTL ? "left-1 md:-left-8" : "right-1 md:-right-8"}`}
+                        onClick={() => instanceRef.current?.next()}
+                      >
                         <svg width="28" height="28" fill="none" viewBox="0 0 24 24">
-                          {isRTL ? <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+                          {isRTL ? (
+                            <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          ) : (
+                            <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          )}
                         </svg>
                       </Button>
                     )}
@@ -290,7 +491,10 @@ const Index = () => {
                         <div className="text-xs text-gray-600 dark:text-pink-200 mb-1 select-none">{t("home.carousel.swipe_hint")}</div>
                         <div className="flex justify-center gap-1">
                           {carouselCourses.map((_, idx) => (
-                            <span key={idx} className={`inline-block w-2.5 h-2.5 rounded-full transition-all ${currentSlide === idx ? 'bg-pink-500 dark:bg-pink-300 shadow-md scale-110' : 'bg-pink-200/60 dark:bg-pink-900/60'}`} />
+                            <span
+                              key={idx}
+                              className={`inline-block w-2.5 h-2.5 rounded-full transition-all ${currentSlide === idx ? "bg-pink-500 dark:bg-pink-300 shadow-md scale-110" : "bg-pink-200/60 dark:bg-pink-900/60"}`}
+                            />
                           ))}
                         </div>
                       </>
@@ -299,19 +503,93 @@ const Index = () => {
                 </>
               )}
 
-              {/* כפתור – בקצה המסך במובייל, גדול בדסקטופ; דואג שלא "יציץ" הסקשן הבא */}
+              {/* ——— תוצאות חיפוש (מדורג: שמורים/קיץ/תחום) ——— */}
+              {!isLoading && isSearch && searchResults.length > 0 && (
+                <div className="w-full mt-5 mb-6 grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                  {searchResults.map((course: any) => (
+                    <Card
+                      key={course.id}
+                      className="rounded-2xl group hover:shadow-2xl hover:-translate-y-1.5 hover:scale-[1.02]
+                                 border-2 border-transparent hover:border-blue-200
+                                 bg-white/95 dark:bg-gradient-to-br dark:from-[#292346]/90 dark:to-[#3b235a]/90 dark:border-pink-500/30
+                                 shadow-md dark:shadow-[0_2px_40px_rgba(255,90,190,0.10)]
+                                 relative overflow-hidden min-h-[170px] cursor-pointer transition-all duration-300"
+                      onClick={() => handleCourseClick(course.id)}
+                    >
+                      <CardHeader className="pb-2 pt-4 px-6">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-base md:text-lg font-bold dark:text-pink-100 leading-tight group-hover:text-blue-600 dark:group-hover:text-pink-300 transition-colors duration-300">
+                            {getLocalizedText(course)}
+                          </CardTitle>
+                          {course.code && (
+                            <Badge className="bg-blue-100 text-blue-800 dark:bg-pink-500/30 dark:text-pink-100 text-xs font-bold px-2 py-1 mt-1">
+                              {course.code}
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0 pb-4 px-6 space-y-2">
+                        <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-pink-200">
+                          <BookOpen className="w-5 h-5 dark:text-pink-300" />
+                          <span>{t("home.course.semester_label")} {course.semester ? course.semester : "."}</span>
+                        </div>
+                        {course.exam_date && (
+                          <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-purple-200">
+                            <Calendar className="w-5 h-5 dark:text-pink-300" />
+                            <span>{t("home.course.exam_date_label")} {formatLocalizedDate(course.exam_date)}</span>
+                          </div>
+                        )}
+                        {course.enable_collaboration && (
+                          <div className="flex items-center gap-2 text-xs md:text-sm text-green-600 dark:text-pink-400">
+                            <Users className="w-5 h-5 dark:text-pink-400" />
+                            <span>{t("home.course.collaboration_available")}</span>
+                          </div>
+                        )}
+                        <Button
+                          className="w-full mt-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-base font-bold py-2 shadow-md hover:shadow-xl hover:scale-105 transition-all
+                                     dark:from-pink-500 dark:to-purple-800 dark:hover:from-pink-400 dark:hover:to-purple-900 dark:text-white dark:font-bold dark:shadow-pink-700/40"
+                          onClick={(e) => { e.stopPropagation(); handleCourseClick(course.id); }}
+                        >
+                          {t("home.course.view_details")}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* אין תוצאות */}
+              {!isLoading && isSearch && searchResults.length === 0 && (
+                <div className="text-center py-6">
+                  <div className="text-lg text-gray-600 mb-2 dark:text-pink-200">
+                    {t("home.courses.no_results")}
+                  </div>
+                </div>
+              )}
+
+              {/* הודעה חיה לנגישות: כמה מוצג עכשיו */}
+              <div aria-live="polite" className="sr-only">
+                {isSearch ? `${searchResults.length} תוצאות חיפוש` : `${coursesForGrid.length} קורסים מוצגים`}
+              </div>
+
+              {/* כפתור לכל הקורסים – דביק לתחתית ההירו (לא בולט מדי במובייל) */}
               {!isSearch && courses.length > 0 && (
                 <div className="flex justify-center mt-4 mb-3 w-full sticky bottom-0 z-30">
-                  <Button className="rounded-xl px-8 md:px-10 py-3 text-lg md:text-xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:scale-105 transition" onClick={scrollToCourses} style={{ width: "96%", maxWidth: 520 }}>
+                  <Button
+                    className="rounded-xl px-8 md:px-10 py-3 text-lg md:text-xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:scale-105 transition"
+                    onClick={scrollToCourses}
+                    style={{ width: "96%", maxWidth: 520 }}
+                  >
                     {t("home.courses.all_courses_button")}
                   </Button>
                 </div>
               )}
+              {/* רווחון קטן כדי שהכפתור לא "ילחץ" על התוכן במובייל */}
               <div className="block md:hidden" style={{ minHeight: 36 }} />
             </div>
           </section>
 
-          {/* כל הקורסים */}
+          {/* ——— סקשן כל הקורסים ——— */}
           <section className="py-8 md:py-16 bg-white/95 backdrop-blur-sm dark:bg-[#251e35]/90 dark:backdrop-blur-2xl transition-all duration-500" ref={coursesSectionRef}>
             <div className="container mx-auto px-2">
               <div className="text-center mb-5 md:mb-8">
@@ -321,20 +599,20 @@ const Index = () => {
                 <p className="text-base text-gray-600 dark:text-pink-200/80">{t("home.course.all_courses_sub")}</p>
               </div>
 
-              {/* פילטרים – קיץ (ברירת מחדל) / כל הקורסים */}
+              {/* פילטרים – קיץ (ברירת מחדל) / כל הקורסים + מונים */}
               <div className="w-full flex justify-center mb-6">
                 <div className="inline-flex rounded-xl overflow-hidden border border-blue-200/60 dark:border-pink-500/30 bg-white/70 dark:bg-white/5 backdrop-blur">
                   <button
                     className={`px-4 py-2 text-sm font-bold ${coursesFilter === "summer" ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : "text-blue-800 dark:text-pink-200"}`}
-                    onClick={() => setCoursesFilter("summer")}
+                    onClick={() => setFilter("summer")}
                   >
-                    סמסטר קיץ
+                    סמסטר קיץ{summerCount ? ` (${summerCount})` : ""}
                   </button>
                   <button
                     className={`px-4 py-2 text-sm font-bold ${coursesFilter === "all" ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : "text-blue-800 dark:text-pink-200"}`}
-                    onClick={() => setCoursesFilter("all")}
+                    onClick={() => setFilter("all")}
                   >
-                    כל הקורסים
+                    כל הקורסים ({courses.length})
                   </button>
                 </div>
               </div>
@@ -346,7 +624,7 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-                  {coursesForGrid.map((course:any) => (
+                  {coursesForGrid.map((course: any) => (
                     <Card
                       key={course.id}
                       className="rounded-2xl group hover:shadow-2xl hover:-translate-y-1.5 hover:scale-[1.02]
@@ -369,7 +647,6 @@ const Index = () => {
                         </div>
                       </CardHeader>
                       <CardContent className="pt-0 pb-4 px-6 space-y-2">
-                        {/* סמסטר – תמיד מופיע גם אם ריק */}
                         <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-pink-200">
                           <BookOpen className="w-5 h-5 dark:text-pink-300" />
                           <span>{t("home.course.semester_label")} {course.semester ? course.semester : "."}</span>
@@ -410,14 +687,14 @@ const Index = () => {
         <Footer />
       </div>
 
-      {/* ===== CSS – רק מובייל משתנה, דסקטופ נשאר ===== */}
+      {/* ===== CSS – התאמות מובייל בלבד + הרקע המונפש ===== */}
       <style>{`
-        /* רקע מונפש */
+        /* ——— רקע מונפש ——— */
         .bg-gradient{ position:absolute; inset:0;
           background: linear-gradient(120deg,#825ae8 0%,#a579e7 18%,#e8b5f5 38%,#fca4c0 56%,#f57bc5 75%,#7ecff2 100%);
           background-size:400% 400%;
         }
-        @keyframes gradient-shift{ 0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%} }
+        @keyframes gradient-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
         .animate-gradient-shift{ animation: gradient-shift 14s ease-in-out infinite; will-change: background-position; }
         .blob{ position:absolute; border-radius:9999px; filter:blur(60px); opacity:.35; mix-blend-mode:screen; will-change:transform; }
         .blob1{ width:480px;height:480px;top:-120px;right:-80px;background:radial-gradient(circle at 30% 30%,#ff7ad1 0%,#8b5cf6 70%);animation:blobFloat1 26s ease-in-out infinite; }
@@ -429,6 +706,7 @@ const Index = () => {
         .dark .blob{ opacity:.25; filter:blur(70px); }
         @media (prefers-reduced-motion: reduce){ .animate-gradient-shift,.blob{ animation:none !important } }
 
+        /* ——— מסגרת כותרת הירו ——— */
         .hero-title-enhanced{
           background: rgba(255,255,255,0.13); backdrop-filter: blur(18px);
           padding:1.2rem .7rem; border-radius:1.45rem; border:2px solid rgba(255,255,255,0.10); box-shadow:0 8px 38px rgba(0,0,0,0.08);
@@ -436,38 +714,48 @@ const Index = () => {
         @media (min-width:768px){ .hero-title-enhanced{ padding:2.2rem 2.8rem } }
         .main-header-override .dark\\:bg-gradient-to-b{ border-radius:0 !important }
 
+        /* ——— חיפוש סטיקי במובייל ——— */
         .sticky-search{ position:static; top:0; z-index:20; transition:box-shadow .2s }
         .sticky-search-active{ position:sticky !important; top:56px; background:rgba(245,245,255,0.92); box-shadow:0 3px 12px rgba(185,110,255,0.07); border-radius:1rem }
 
-        /* חיצים – מובייל עדין */
+        /* ——— חיצי קרוסלה: דסקטופ בולט, מובייל עדין ——— */
         .carousel-arrow{ position:absolute; top:50%; transform:translateY(-50%); z-index:20; backdrop-filter:blur(8px);
           background:rgba(255,255,255,0.88); color:#1e3a8a; border:1px solid rgba(255,255,255,0.6); border-radius:9999px; width:44px; height:44px; box-shadow:0 6px 16px rgba(0,0,0,0.12); }
         .carousel-arrow:hover{ transform:translateY(-50%) scale(1.06) }
         @media (max-width:767px){ .carousel-arrow{ width:30px;height:30px;opacity:.45;background:rgba(255,255,255,.6);border:none;box-shadow:0 4px 10px rgba(0,0,0,.10) } }
 
-        /* ===== מובייל בלבד – כל העדכונים שביקשת ===== */
+        /* ===== מובייל בלבד ===== */
         @media (max-width:767px){
-          /* עושה שההרו יתפוס מסך פתיחה מלא כדי שלא יציץ הסקשן הבא */
+          /* הירו מכסה מסך פתיחה – כפתור בתחתית */
           .hero-section{ min-height: 100svh; }
-          /* שכבת ורוד חזקה יותר */
-          .mobile-pink-overlay{ position:absolute; inset:0; background: linear-gradient(180deg, rgba(255,192,203,0.28) 0%, rgba(255,178,216,0.38) 35%, rgba(255,192,203,0.28) 100%); }
-          /* קרוסלה צרה ונוחה */
+          .mobile-pink-overlay{
+            position:absolute; inset:0;
+            background: linear-gradient(180deg, rgba(255,192,203,0.36) 0%, rgba(255,178,216,0.48) 34%, rgba(255,192,203,0.36) 100%);
+            pointer-events:none;
+          }
+          /* כרטיסי קרוסלה קצת יותר צרים – נשימה */
           .keen-slider__slide > .card{
-            min-width: 82vw !important;  /* היה רחב מדי */
+            min-width: 82vw !important;
             max-width: 86vw !important;
             margin-left: 4vw; margin-right: 4vw;
           }
-          /* ריווח לפני ואחרי הקרוסלה */
-          .hero-section .keen-slider{ margin-top: .2rem; margin-bottom: .2rem }
-          /* מספר קורס – ממורכז כבר דרך המחלקה course-code-badge-mobile */
+          /* ריווח עדין מעל/מתחת לקרוסלה */
+          .hero-section .keen-slider{ margin-top:.5rem; margin-bottom:.65rem }
+          html, body, #root, .min-h-screen {
+            min-height: 100vh !important; height: 100dvh !important; box-sizing: border-box; overscroll-behavior: none;
+          }
+          /* safe-area לכפתור הדביק */
+          .flex.justify-center.mt-4.mb-3.w-full.sticky.bottom-0 {
+            padding-bottom: env(safe-area-inset-bottom, 24px);
+            background: linear-gradient(180deg, rgba(255,255,255,0.04) 40%, rgba(248,219,236,1) 100%);
+          }
         }
-
         @supports (-webkit-touch-callout: none){
           html, body, #root, .min-h-screen { min-height: -webkit-fill-available !important; height: -webkit-fill-available !important; }
         }
         @media (max-width:350px){ .keen-slider__slide > .card{ min-width: 88vw !important } }
 
-        /* תגית פופולרי */
+        /* ——— תגית פופולרי – מעט מעל הכרטיס ——— */
         .popular-badge{
           position:absolute; left:.9rem; top:-10px; font-size:10px; line-height:1; padding:4px 8px; border-radius:9999px;
           background:linear-gradient(90deg,#ec4899,#8b5cf6); color:#fff; font-weight:800; box-shadow:0 10px 18px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.65); pointer-events:none;

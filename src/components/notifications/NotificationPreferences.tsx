@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -15,25 +15,18 @@ interface NotificationPreferencesProps {
   className?: string;
 }
 
+/** רק המפתחות שאנחנו מנהלים ב-UI הזה */
 interface UserPreferences {
-  // בסיס
   site_notifications: boolean;
   push_notifications: boolean;
-
-  // תזכורות עיקריות
   assignment_reminders: boolean;
   exam_reminders: boolean;
-
-  // פחות קריטיים
   study_partner_alerts: boolean;
   system_updates: boolean;
-
-  // חנות/מייל וכו׳
   email_digest: boolean;
-
-  // ✅ חדש: מפגשים
-  show_shared_sessions_open: boolean;       // התראות על מפגשים שנפתחו/נוצרו
-  show_shared_sessions_scheduled: boolean;  // התראות על מפגשים מתוכננים מראש
+  // מפגשים
+  show_shared_sessions_open: boolean;
+  show_shared_sessions_scheduled: boolean;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -55,11 +48,16 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // נשמור מצב "נוכחי בעריכה" ומצב "נשמר אחרון" כדי לאפשר ביטול
+  // ⚠️ נשמור גם את ה-JSON המקורי מהשרת כדי לא למחוק מפתחות שאיננו מנהלים
+  const rawServerPrefsRef = useRef<Record<string, any>>({});
+
   const [prefs, setPrefs] = useState<UserPreferences>(defaultPreferences);
   const [lastSavedPrefs, setLastSavedPrefs] = useState<UserPreferences>(defaultPreferences);
 
-  const dirty = useMemo(() => JSON.stringify(prefs) !== JSON.stringify(lastSavedPrefs), [prefs, lastSavedPrefs]);
+  const dirty = useMemo(
+    () => JSON.stringify(prefs) !== JSON.stringify(lastSavedPrefs),
+    [prefs, lastSavedPrefs]
+  );
 
   const {
     isSupported,
@@ -84,32 +82,56 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
           console.warn('Could not load notification preferences:', error);
         }
 
-        // מיזוג בטוח עם ברירות מחדל כדי לא לשבור אם חסרים שדות
-        const incoming = (data?.notification_preferences || {}) as Partial<UserPreferences>;
-        const merged: UserPreferences = { ...defaultPreferences, ...incoming };
+        const incoming = (data?.notification_preferences || {}) as Record<string, any>;
+        rawServerPrefsRef.current = incoming; // נשמור את כל מה שהגיע
+
+        // מיזוג בטוח: נבנה את ה-UI state מהדיפולטים + רק המפתחות שאנחנו מכירים
+        const merged: UserPreferences = {
+          ...defaultPreferences,
+          ...pickUIKeys(incoming),
+        };
 
         setPrefs(merged);
         setLastSavedPrefs(merged);
       } catch (err) {
         console.error('Error loading preferences:', err);
+        toast({ title: 'שגיאה', description: 'טעינת ההגדרות נכשלה', variant: 'destructive' });
       } finally {
         setLoaded(true);
       }
     };
     loadPreferences();
-  }, [user]);
+  }, [user, toast]);
 
+  // אזהרת עזיבה עם שינויים לא שמורים (בדסקטופ)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  // שמירה – ממזגים את המפתחות שאנחנו מנהלים לתוך ה-JSON המקורי
   const savePreferences = async () => {
     if (!user) return;
     setSaving(true);
     try {
+      const toSave = {
+        ...rawServerPrefsRef.current, // שומר על כל המפתחות שלא נוגעים בהם
+        ...prefs,                     // מעדכן/מוסיף רק את המפתחות שלנו
+      };
+
       const { error } = await supabase
         .from('profiles')
-        .update({ notification_preferences: prefs })
+        .update({ notification_preferences: toSave })
         .eq('id', user.id);
 
       if (error) throw error;
 
+      rawServerPrefsRef.current = toSave;  // עדכן מקור
       setLastSavedPrefs(prefs);
       toast({ title: 'הגדרות נשמרו', description: 'העדפות ההתראות עודכנו בהצלחה' });
     } catch (err) {
@@ -137,8 +159,11 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
     if (enabled && !isEnabled) {
       const granted = await requestPermission();
       if (!granted) {
-        // לא ניתן – משאירים את הערך כ־false
-        toast({ title: 'הרשאה נדחתה', description: 'לא ניתן להפעיל התראות Push ללא הרשאה', variant: 'destructive' });
+        toast({
+          title: 'הרשאה נדחתה',
+          description: 'לא ניתן להפעיל התראות Push ללא הרשאה',
+          variant: 'destructive'
+        });
         setBool('push_notifications', false);
         return;
       }
@@ -179,8 +204,7 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
             <Settings className="h-5 w-5" />
             הגדרות התראות
           </span>
-
-          {/* שורת פעולות קומפקטית בדסקטופ */}
+          {/* פעולות בדסקטופ */}
           <div className="hidden sm:flex items-center gap-2">
             <Button variant="outline" onClick={resetChanges} disabled={!dirty || saving}>ביטול</Button>
             <Button onClick={savePreferences} disabled={!dirty || saving}>
@@ -190,15 +214,9 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="space-y-8 pb-24"> {/* ריווח תחתון לפס הדביק בנייד */}
-        {/* מצב טעינה */}
+      <CardContent className="space-y-8 pb-24">
         {!loaded ? (
-          <div className="space-y-4">
-            <div className="h-5 w-40 bg-gray-200/70 rounded animate-pulse" />
-            <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
-            <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
-            <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
-          </div>
+          <SkeletonBlock />
         ) : (
           <>
             {/* 🔔 התראות באתר */}
@@ -310,7 +328,7 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
                 id="email-digest"
                 label="סיכום שבועי במייל (בקרוב)"
                 checked={prefs.email_digest}
-                onChange={() => {/* השבתה עד להטמעה מלאה */}}
+                onChange={() => {}}
                 disabled
               />
             </section>
@@ -346,3 +364,33 @@ const ToggleRow = ({
     <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={!!disabled} />
   </div>
 );
+
+/** שלד טעינה יפה */
+const SkeletonBlock = () => (
+  <div className="space-y-4">
+    <div className="h-5 w-40 bg-gray-200/70 rounded animate-pulse" />
+    <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
+    <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
+    <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
+  </div>
+);
+
+/** שולף רק מפתחות שאנחנו מציגים ב-UI, כדי לבנות state נקי */
+function pickUIKeys(all: Record<string, any>): Partial<UserPreferences> {
+  const keys: (keyof UserPreferences)[] = [
+    'site_notifications',
+    'push_notifications',
+    'assignment_reminders',
+    'exam_reminders',
+    'study_partner_alerts',
+    'system_updates',
+    'email_digest',
+    'show_shared_sessions_open',
+    'show_shared_sessions_scheduled',
+  ];
+  const out: Partial<UserPreferences> = {};
+  for (const k of keys) {
+    if (k in all) (out as any)[k] = all[k];
+  }
+  return out;
+}

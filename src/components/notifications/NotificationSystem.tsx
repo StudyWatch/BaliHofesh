@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/components/notifications/NotificationSystem.tsx
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,52 +15,139 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import {
-  Bell, Trash2, Check, CheckCheck, Trash, Calendar,
-  BookOpen, Users, Star, Info, Inbox
+  Bell,
+  Trash2 as Trash,
+  Check,
+  CheckCheck,
+  Calendar,
+  BookOpen,
+  Users,
+  Star,
+  Info,
+  Inbox,
+  HelpCircle,
+  X,
+  DownloadCloud,
 } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/supabase.types';
 
 type DeliveryTarget = 'site' | 'push' | 'both';
-type NotificationRow = Database['public']['Tables']['notifications']['Row'] & { delivery_target: DeliveryTarget; };
+type NotificationRow = Database['public']['Tables']['notifications']['Row'] & {
+  delivery_target: DeliveryTarget;
+};
 
 interface NotificationSystemProps {
   isOpen: boolean;
   onClose: () => void;
+  appName?: string;
+  appIconUrl?: string;
 }
 
-const typeIcons: Record<string, React.ReactNode> = {
-  exam: <Calendar className="w-4 h-4 text-red-500" />,
-  assignment: <BookOpen className="w-4 h-4 text-blue-500" />,
-  study_partner: <Users className="w-4 h-4 text-green-600" />,
-  shared_session: <Users className="w-4 h-4 text-purple-500" />,
-  system: <Star className="w-4 h-4 text-yellow-500" />,
-  message: <Bell className="w-4 h-4 text-cyan-500" />,
-  tip: <Info className="w-4 h-4 text-teal-500" />,
-  default: <Inbox className="w-4 h-4 text-gray-400" />,
+/* ===== עזרים ===== */
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice?: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 };
+const isStandalone = () =>
+  (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+  // @ts-ignore iOS Safari
+  (typeof window !== 'undefined' && (window.navigator as any)?.standalone);
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isAndroid = () => /android/i.test(navigator.userAgent);
+const uaIsMobile = () => /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+const isLikelyMobile = () => {
+  try {
+    const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
+    const narrow = window.matchMedia?.('(max-width: 820px)')?.matches;
+    return uaIsMobile() || (coarse && narrow);
+  } catch {
+    return uaIsMobile();
+  }
+};
+const forcePwaBanner =
+  typeof window !== 'undefined' &&
+  (new URLSearchParams(window.location.search).get('forcePwa') === '1' ||
+    new URLSearchParams(window.location.search).get('forcePwaBanner') === '1');
 
-const getTypeIcon = (type: string) => typeIcons[type] || typeIcons['default'];
-const getTypeColor = (type: string) => {
-  switch (type) {
-    case 'exam': return 'border-red-300 bg-red-50';
-    case 'assignment': return 'border-blue-300 bg-blue-50';
-    case 'study_partner': return 'border-green-400 bg-green-50';
-    case 'shared_session': return 'border-purple-300 bg-purple-50';
-    case 'system': return 'border-yellow-300 bg-yellow-50';
-    case 'message': return 'border-cyan-300 bg-cyan-50';
-    case 'tip': return 'border-teal-300 bg-teal-50';
-    default: return 'border-gray-300 bg-gray-50';
+/* ===== אייקונים/צבעים ===== */
+const typeIcons: Record<string, React.ReactNode> = {
+  exam: <Calendar className="w-4 h-4 text-red-500 dark:text-red-400" />,
+  assignment: <BookOpen className="w-4 h-4 text-blue-500 dark:text-blue-400" />,
+  study_partner: <Users className="w-4 h-4 text-green-600 dark:text-green-400" />,
+  shared_session: <Users className="w-4 h-4 text-purple-500 dark:text-purple-300" />,
+  system: <Star className="w-4 h-4 text-yellow-500 dark:text-yellow-300" />,
+  message: <Bell className="w-4 h-4 text-cyan-500 dark:text-cyan-300" />,
+  tip: <Info className="w-4 h-4 text-teal-500 dark:text-teal-300" />,
+  default: <Inbox className="w-4 h-4 text-gray-400 dark:text-gray-300" />,
+};
+const getTypeIcon = (t: string) => typeIcons[t] || typeIcons.default;
+
+const getTypeColor = (t: string) => {
+  switch (t) {
+    case 'exam': return 'border-red-300 bg-red-50 dark:border-red-900/40 dark:bg-red-950/30';
+    case 'assignment': return 'border-blue-300 bg-blue-50 dark:border-blue-900/40 dark:bg-blue-950/30';
+    case 'study_partner': return 'border-green-400 bg-green-50 dark:border-green-900/40 dark:bg-green-950/30';
+    case 'shared_session': return 'border-purple-300 bg-purple-50 dark:border-purple-900/40 dark:bg-purple-950/30';
+    case 'system': return 'border-yellow-300 bg-yellow-50 dark:border-yellow-900/40 dark:bg-yellow-950/30';
+    case 'message': return 'border-cyan-300 bg-cyan-50 dark:border-cyan-900/40 dark:bg-cyan-950/30';
+    case 'tip': return 'border-teal-300 bg-teal-50 dark:border-teal-900/40 dark:bg-teal-950/30';
+    default: return 'border-gray-300 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40';
   }
 };
 
-const NotificationSystem: React.FC<NotificationSystemProps> = ({ isOpen, onClose }) => {
+/* ===== קומפוננטה ===== */
+const NotificationSystem: React.FC<NotificationSystemProps> = ({
+  isOpen,
+  onClose,
+  appName = 'האפליקציה שלנו',
+  appIconUrl = '/icons/icon-192.png',
+}) => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // טעינת התראות מהשרת
+  // PWA banner
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const hiddenKey = 'hide_pwa_install_banner_v3';
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem(hiddenKey) === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    const onBip = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      if ((isLikelyMobile() || forcePwaBanner) && !isStandalone() && !dismissed) {
+        setShowInstallBanner(true);
+      }
+    };
+    window.addEventListener('beforeinstallprompt', onBip);
+    if ((isLikelyMobile() || forcePwaBanner) && !isStandalone() && !dismissed && isIOS()) {
+      setShowInstallBanner(true);
+    }
+    return () => window.removeEventListener('beforeinstallprompt', onBip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dismissed, isOpen]);
+
+  const handlePromptInstall = async () => {
+    try {
+      if (!deferredPrompt?.prompt) return;
+      await deferredPrompt.prompt();
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    } catch {}
+  };
+  const handleDismissForever = () => {
+    try { localStorage.setItem(hiddenKey, '1'); } catch {}
+    setDismissed(true);
+    setShowInstallBanner(false);
+  };
+
+  /* ===== טעינת התראות ===== */
   const fetchNotifications = async () => {
     if (!user) return setNotifications([]);
     setLoading(true);
@@ -65,44 +158,55 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ isOpen, onClose
         .eq('user_id', user.id)
         .in('delivery_target', ['site', 'both'])
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(70);
       if (error) throw error;
+
       const now = new Date();
-      setNotifications((data || []).filter(
-        n =>
+      const filtered = (data || [])
+        .filter((n) =>
           (!n.expires_at || new Date(n.expires_at) > now) &&
           (n.title?.trim() || n.message?.trim()) &&
-          ['site', 'both'].includes(n.delivery_target ?? 'site')
-      ).map(n => ({
-        ...n,
-        delivery_target: (n.delivery_target ?? 'site') as DeliveryTarget,
-      })));
-    } catch (e) {
+          ['site', 'both'].includes((n.delivery_target as DeliveryTarget) ?? 'site')
+        )
+        .map((n) => ({ ...n, delivery_target: (n.delivery_target ?? 'site') as DeliveryTarget }));
+      setNotifications(filtered);
+    } catch {
       toast.error('שגיאה בטעינת התראות');
       setNotifications([]);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { if (isOpen && user) fetchNotifications(); }, [isOpen, user]);
   useEffect(() => {
     if (!user || !isOpen) return;
-    pollingRef.current = setInterval(fetchNotifications, 60000);
+    pollingRef.current = setInterval(fetchNotifications, 60_000);
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [user, isOpen]);
 
-  // פעולות ניהול
-  const markAsRead = async (notificationId: string) => {
+  // קיצורי מקשים
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key.toLowerCase() === 'a' && !e.metaKey && !e.ctrlKey) markAllAsRead();
+      if (e.key === 'Delete') deleteAllNotifications();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  /* ===== פעולות ===== */
+  const markAsRead = async (id: string) => {
     try {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
-      setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n));
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
     } catch { toast.error('שגיאה בסימון התראה'); }
   };
-  const deleteNotification = async (notificationId: string) => {
+  const deleteNotification = async (id: string) => {
     try {
-      await supabase.from('notifications').delete().eq('id', notificationId);
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      await supabase.from('notifications').delete().eq('id', id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
       toast.success('התראה נמחקה');
     } catch { toast.error('שגיאה במחיקת התראה'); }
   };
@@ -110,13 +214,12 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ isOpen, onClose
     if (!user) return;
     setBulkLoading(true);
     try {
-      await supabase
-        .from('notifications')
+      await supabase.from('notifications')
         .update({ is_read: true })
         .eq('user_id', user.id)
         .eq('is_read', false)
         .in('delivery_target', ['site', 'both']);
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setNotifications((p) => p.map((n) => ({ ...n, is_read: true })));
       toast.success('כל ההתראות סומנו כנקראו');
     } catch { toast.error('שגיאה בסימון התראות'); }
     setBulkLoading(false);
@@ -125,108 +228,160 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ isOpen, onClose
     if (!user) return;
     setBulkLoading(true);
     try {
-      const idsToDelete = notifications.map(n => n.id);
-      if (idsToDelete.length === 0) return;
-      await supabase.from('notifications').delete().in('id', idsToDelete);
+      const ids = notifications.map((n) => n.id);
+      if (!ids.length) return;
+      await supabase.from('notifications').delete().in('id', ids);
       setNotifications([]);
       toast.success('כל ההתראות נמחקו!');
     } catch { toast.error('שגיאה במחיקת כל ההתראות'); }
     setBulkLoading(false);
   };
 
-  // הצגה
-  const unread = notifications.filter(n => !n.is_read);
-  const read = notifications.filter(n => n.is_read);
+  /* ===== חישובי תצוגה ===== */
+  const unread = useMemo(() => notifications.filter((n) => !n.is_read), [notifications]);
+  const read = useMemo(() => notifications.filter((n) => n.is_read), [notifications]);
   const unreadCount = unread.length;
   const hasNotifications = unread.length > 0 || read.length > 0;
 
+  /* ===== רנדר ===== */
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-md mx-auto bg-white border-2 shadow-2xl rounded-2xl h-[600px] flex flex-col p-0" dir="rtl">
-        <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b bg-gradient-to-r from-blue-500/10 via-purple-300/20 to-pink-100/20 rounded-t-2xl">
-          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-blue-900">
-            <Bell className="w-5 h-5" />
-            התראות
-            {unreadCount > 0 && (
-              <Badge variant="destructive" className="text-xs px-2">{unreadCount}</Badge>
-            )}
-          </DialogTitle>
-          <div className="flex gap-2">
+      <DialogContent
+        dir="rtl"
+        aria-label="מרכז התראות"
+        className="
+          w-full max-w-[720px] md:max-w-[640px] mx-auto bg-white dark:bg-gray-900
+          border border-gray-200 dark:border-gray-800 shadow-2xl rounded-2xl
+          h-[80vh] md:h-[640px] flex flex-col p-0
+          [&_button[aria-label='Close']]:!hidden
+          [&_button.absolute.right-4.top-4]:!hidden
+        "
+      >
+        {/* טופ־בר: פעולות בשמאל, כותרת במרכז, X בימין */}
+        <div
+          dir="ltr"
+          className="
+            grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 sm:px-4 pt-3 pb-3
+            border-b border-gray-100 dark:border-gray-800
+            bg-gradient-to-r from-blue-500/10 via-purple-300/20 to-pink-100/20
+            dark:from-blue-900/10 dark:via-purple-900/10 dark:to-pink-900/10
+            rounded-t-2xl
+          "
+        >
+          {/* פעולות — שמאל */}
+          <div className="flex items-center gap-1 sm:gap-2 justify-start">
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={markAllAsRead}
-              className="text-xs flex items-center gap-1 hover:text-green-700"
+              variant="ghost" size="sm" onClick={markAllAsRead}
+              className="text-xs sm:text-sm flex items-center gap-1 hover:text-green-700 dark:hover:text-green-400"
               disabled={bulkLoading || unreadCount === 0}
-              title="סמן הכל כנקרא"
+              title="סמן הכל כנקרא (A)"
             >
               <CheckCheck className="w-4 h-4" />
               <span className="hidden sm:inline">סמן הכל כנקרא</span>
             </Button>
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={deleteAllNotifications}
-              className="text-xs flex items-center gap-1 hover:text-red-700"
+              variant="ghost" size="sm" onClick={deleteAllNotifications}
+              className="text-xs sm:text-sm flex items-center gap-1 hover:text-red-700 dark:hover:text-red-400"
               disabled={bulkLoading || !hasNotifications}
-              title="מחק הכל"
+              title="מחק הכל (Del)"
             >
               <Trash className="w-4 h-4" />
               <span className="hidden sm:inline">מחק הכל</span>
             </Button>
           </div>
-        </DialogHeader>
+
+          {/* כותרת — מרכז */}
+          <div className="flex items-center justify-center gap-2 min-w-0">
+            <Bell className="w-5 h-5 shrink-0 text-blue-900 dark:text-blue-100" />
+            <DialogTitle className="truncate text-lg font-bold text-blue-900 dark:text-blue-100">
+              התראות
+            </DialogTitle>
+            {unreadCount > 0 && (
+              <Badge variant="destructive" className="text-xs px-2 shrink-0">{unreadCount}</Badge>
+            )}
+          </div>
+
+          {/* X — ימין (יחיד) */}
+          <div className="flex items-center justify-end">
+            <DialogClose asChild>
+              <Button
+                variant="ghost" size="icon"
+                className="rounded-full h-9 w-9 sm:h-10 sm:w-10 text-gray-700 dark:text-gray-100
+                           bg-white/30 dark:bg-white/10 hover:bg-white/50 dark:hover:bg-white/20
+                           border border-white/40"
+                aria-label="סגור" title="סגור (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </DialogClose>
+          </div>
+        </div>
+
         <ScrollArea className="flex-1 w-full px-0.5">
           {loading ? (
-            <div className="p-8 flex flex-col items-center text-center">
+            <div className="p-10 flex flex-col items-center text-center">
               <Bell className="w-10 h-10 text-blue-400 animate-bounce mb-2" />
-              <span className="text-blue-800 font-semibold">טוען התראות...</span>
+              <span className="text-blue-800 dark:text-blue-200 font-semibold">טוען התראות...</span>
             </div>
           ) : !hasNotifications ? (
             <div className="flex flex-col items-center py-20 opacity-80">
-              <Inbox className="w-16 h-16 text-gray-300 mb-2" />
-              <div className="font-bold text-lg text-gray-700">אין התראות להצגה</div>
-              <div className="text-gray-400 text-xs mt-1">לא התקבלו התראות חדשות לאחרונה</div>
+              <Inbox className="w-16 h-16 text-gray-300 dark:text-gray-600 mb-2" />
+              <div className="font-bold text-lg text-gray-700 dark:text-gray-200">אין התראות להצגה</div>
+              <div className="text-gray-400 dark:text-gray-500 text-xs mt-1">לא התקבלו התראות חדשות לאחרונה</div>
             </div>
           ) : (
-            <div className="space-y-2 p-2 pb-5">
+            <div className="space-y-2 p-2 pb-6">
               {unread.length > 0 && (
                 <>
-                  <div className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-50 rounded shadow-sm mb-1 border border-blue-100">
+                  <div className="px-2 py-1 text-xs font-semibold text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/20 rounded shadow-sm mb-1 border border-blue-100 dark:border-blue-900/30">
                     התראות חדשות ({unread.length})
                   </div>
-                  {unread.map(notification => (
-                    <NotificationItem
-                      key={notification.id}
-                      notification={notification}
-                      onMarkAsRead={markAsRead}
-                      onDelete={deleteNotification}
-                    />
+                  {unread.map((n) => (
+                    <NotificationItem key={n.id} notification={n} onMarkAsRead={markAsRead} onDelete={deleteNotification} />
                   ))}
                 </>
               )}
+
               {read.length > 0 && (
                 <>
                   {unread.length > 0 && (
-                    <div className="px-2 py-1 text-xs font-semibold text-gray-600 bg-gray-50 rounded mt-2 border border-gray-100">
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded mt-2 border border-gray-100 dark:border-gray-800">
                       התראות שנקראו
                     </div>
                   )}
-                  {read.map(notification => (
-                    <NotificationItem
-                      key={notification.id}
-                      notification={notification}
-                      onMarkAsRead={markAsRead}
-                      onDelete={deleteNotification}
-                    />
+                  {read.map((n) => (
+                    <NotificationItem key={n.id} notification={n} onMarkAsRead={markAsRead} onDelete={deleteNotification} />
                   ))}
                 </>
               )}
             </div>
           )}
+
+          {/* באנר התקנה לנייד + מדריך (אופציונלי) */}
+          {showInstallBanner && (
+            <>
+              <InstallPwaBanner
+                appName={appName}
+                appIconUrl={appIconUrl}
+                onInstall={handlePromptInstall}
+                onOpenHelp={() => setShowHelp((v) => !v)}
+                onDismissForever={handleDismissForever}
+                hasPrompt={!!deferredPrompt}
+              />
+              {showHelp && <HelpBlock />}
+            </>
+          )}
+
+          <div className="h-[max(8px,env(safe-area-inset-bottom))]" />
         </ScrollArea>
-        <div className="flex justify-end pt-4 border-t px-4 pb-2">
-          <Button variant="outline" onClick={onClose} className="rounded-full font-bold shadow-sm hover:bg-gray-100">
+
+        {/* פוטר – אפשר להסתיר במובייל אם תרצה */}
+        <div className="flex justify-end pt-3 border-t border-gray-100 dark:border-gray-800 px-4 pb-[max(14px,env(safe-area-inset-bottom))]">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="rounded-full font-bold shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
             סגור
           </Button>
         </div>
@@ -235,29 +390,24 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ isOpen, onClose
   );
 };
 
+/* ===== פריט התראה ===== */
 const NotificationItem: React.FC<{
   notification: NotificationRow;
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
 }> = ({ notification, onMarkAsRead, onDelete }) => {
   const colorClasses = getTypeColor(notification.type);
-
   const handleClick = () => {
     if (notification.link) {
-      if (notification.link.startsWith('/')) {
-        window.location.href = notification.link;
-      } else {
-        window.open(notification.link, '_blank', 'noopener,noreferrer');
-      }
+      if (notification.link.startsWith('/')) window.location.href = notification.link;
+      else window.open(notification.link, '_blank', 'noopener,noreferrer');
     }
   };
 
   return (
-    <div
-      className={
-        `relative p-4 rounded-2xl border shadow-sm cursor-pointer transition-all group ${colorClasses} 
-        ${notification.is_read ? 'opacity-60' : 'opacity-100'} hover:shadow-lg`
-      }
+    <article
+      className={`relative p-4 rounded-2xl border shadow-sm cursor-pointer transition-all group ${colorClasses}
+        ${notification.is_read ? 'opacity-60' : 'opacity-100'} hover:shadow-lg`}
       onClick={handleClick}
       title={notification.title ?? ''}
       tabIndex={0}
@@ -267,77 +417,170 @@ const NotificationItem: React.FC<{
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-shrink-0 mt-1">{getTypeIcon(notification.type)}</div>
+
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-1">
-            <h4 className={`font-bold text-base mb-0 truncate ${notification.is_read ? 'text-gray-700' : 'text-blue-900'}`}>
+            <h4 className={`font-bold text-base mb-0 truncate ${notification.is_read ? 'text-gray-700 dark:text-gray-300' : 'text-blue-900 dark:text-blue-100'}`}>
               {notification.title}
             </h4>
             {notification.is_critical && (
-              <span className="ml-1 text-xs text-red-600 font-bold px-2 py-0.5 bg-red-100 rounded">
+              <span className="ml-1 text-xs text-red-700 dark:text-red-300 font-bold px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">
                 חשוב
               </span>
             )}
           </div>
+
           <p
-            className={`text-xs leading-relaxed mt-1 whitespace-pre-wrap ${notification.is_read ? 'text-gray-600' : 'text-gray-800'}`}
+            className={`text-xs leading-relaxed mt-1 whitespace-pre-wrap ${
+              notification.is_read ? 'text-gray-600 dark:text-gray-400' : 'text-gray-800 dark:text-gray-200'
+            }`}
             style={{ textAlign: 'right', direction: 'rtl' }}
           >
             {notification.message}
           </p>
+
           <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-400 dark:text-gray-500">
               {notification.created_at &&
-                formatDistanceToNow(new Date(notification.created_at), {
-                  addSuffix: true,
-                  locale: he,
-                })}
+                formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: he })}
             </span>
             {notification.assignment_id && (
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
-                מטלה
-              </span>
+              <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-bold">מטלה</span>
             )}
             {notification.exam_id && (
-              <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-bold">
-                בחינה
-              </span>
+              <span className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 font-bold">בחינה</span>
             )}
           </div>
         </div>
+
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity mr-2">
           {!notification.is_read && (
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={e => {
-                e.stopPropagation();
-                onMarkAsRead(notification.id);
-              }}
-              className="h-6 w-6 p-0"
-              title="סמן כנקרא"
-              aria-label="סמן כנקרא"
+              variant="ghost" size="sm"
+              onClick={(e) => { e.stopPropagation(); onMarkAsRead(notification.id); }}
+              className="h-6 w-6 p-0" title="סמן כנקרא" aria-label="סמן כנקרא"
             >
               <Check className="w-3 h-3" />
             </Button>
           )}
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={e => {
-              e.stopPropagation();
-              onDelete(notification.id);
-            }}
-            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-            title="מחק התראה"
-            aria-label="מחק התראה"
+            variant="ghost" size="sm"
+            onClick={(e) => { e.stopPropagation(); onDelete(notification.id); }}
+            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200"
+            title="מחק התראה" aria-label="מחק התראה"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash className="w-3 h-3" />
           </Button>
         </div>
+
         {!notification.is_read && (
-          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1 absolute right-2 top-2 animate-pulse"></div>
+          <div className="w-2 h-2 bg-blue-500 dark:bg-blue-300 rounded-full flex-shrink-0 mt-1 absolute right-2 top-2 animate-pulse" />
         )}
       </div>
+    </article>
+  );
+};
+
+/* ===== באנר התקנה לנייד ===== */
+const InstallPwaBanner: React.FC<{
+  appName: string;
+  appIconUrl: string;
+  onInstall: () => void;
+  onOpenHelp: () => void;
+  onDismissForever: () => void;
+  hasPrompt: boolean;
+}> = ({ appName, appIconUrl, onInstall, onOpenHelp, onDismissForever, hasPrompt }) => {
+  const notifPerm: NotificationPermission =
+    (typeof Notification !== 'undefined' ? Notification.permission : 'default') as NotificationPermission;
+
+  return (
+    <div className="mx-2 my-3 rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/30 p-3 shadow-sm">
+      <div className="flex items-start gap-3">
+        <img
+          src={appIconUrl}
+          alt={appName}
+          className="w-10 h-10 rounded-2xl border border-white/40 shadow-sm flex-shrink-0 object-cover"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <div className="font-bold text-blue-900 dark:text-blue-100">התקינו את {appName} בטלפון</div>
+            <button onClick={onOpenHelp} className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40" aria-label="עוד מידע" title="עוד מידע">
+              <HelpCircle className="w-4 h-4 text-blue-700 dark:text-blue-300" />
+            </button>
+          </div>
+
+          <ul className="mt-1 text-xs text-blue-900/80 dark:text-blue-200/90 list-disc mr-5 space-y-0.5">
+            <li>התראות מרוכזות בשעות שנוחות לך</li>
+            <li>גישה מהירה מהמסך הראשי</li>
+            <li>ממשק מותאם לנייד ומעט רעש</li>
+          </ul>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {hasPrompt && (
+              <Button onClick={onInstall} className="h-8 px-3 text-sm flex items-center gap-2">
+                <DownloadCloud className="w-4 h-4" />
+                התקן/י כאפליקציה
+              </Button>
+            )}
+            {!hasPrompt && (
+              <Button onClick={onOpenHelp} variant="secondary" className="h-8 px-3 text-sm">
+                איך מתקינים?
+              </Button>
+            )}
+            {notifPerm !== 'granted' ? (
+              <Button
+                variant="outline" className="h-8 px-3 text-sm"
+                onClick={async () => {
+                  try {
+                    const res = await Notification.requestPermission();
+                    if (res === 'granted') toast.success('ההרשאה הופעלה. אפשר לקנפג התראות במסך ההעדפות.');
+                    else if (res === 'denied') toast.error('ההרשאה נדחתה בדפדפן.');
+                  } catch {}
+                }}
+              >
+                אשר/י התראות
+              </Button>
+            ) : (
+              <Button variant="outline" className="h-8 px-3 text-sm" onClick={() => { window.location.href = '/settings/notifications'; }}>
+                ניהול הרשאות
+              </Button>
+            )}
+            <Button variant="ghost" className="h-8 px-3 text-sm" onClick={onDismissForever}>אל תציג שוב</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ===== מדריך קצר ===== */
+const HelpBlock: React.FC = () => {
+  const ios = isIOS();
+  const and = isAndroid();
+
+  return (
+    <div className="mx-2 mb-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 text-sm">
+      <div className="font-bold mb-2">איך מתקינים כאפליקציה ומפעילים התראות?</div>
+      {ios && (
+        <ol className="list-decimal mr-5 space-y-1 text-gray-700 dark:text-gray-300">
+          <li>פתח/י את האתר ב-Safari.</li>
+          <li>לחצ/י על כפתור השיתוף (מלבן עם חץ למעלה).</li>
+          <li>בחר/י <b>הוספה למסך הבית</b>.</li>
+          <li>פתח/י את האפליקציה והפעל/י הרשאות התראות בהגדרות.</li>
+        </ol>
+      )}
+      {and && (
+        <ol className="list-decimal mr-5 space-y-1 text-gray-700 dark:text-gray-300">
+          <li>ב-Chrome/Android יופיע “הוספה למסך הבית” או דרך תפריט ⋮.</li>
+          <li>בחר/י <b>הוספה למסך הבית</b>.</li>
+          <li>פתח/י את האפליקציה והפעל/י הרשאות התראות בהגדרות.</li>
+        </ol>
+      )}
+      {!ios && !and && (
+        <div className="text-gray-700 dark:text-gray-300">ניתן להוסיף למסך הבית דרך תפריט הדפדפן ולהפעיל התראות בהגדרות.</div>
+      )}
+      <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">טיפ: אם סירבת בעבר להתראות, אפשרי להפעיל מחדש בהגדרות הדפדפן/המערכת.</div>
     </div>
   );
 };
