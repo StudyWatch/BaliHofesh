@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Bell, Smartphone, Globe } from 'lucide-react';
+import { Settings, Globe, Smartphone, Bell } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,13 +16,24 @@ interface NotificationPreferencesProps {
 }
 
 interface UserPreferences {
+  // בסיס
   site_notifications: boolean;
   push_notifications: boolean;
+
+  // תזכורות עיקריות
   assignment_reminders: boolean;
   exam_reminders: boolean;
+
+  // פחות קריטיים
   study_partner_alerts: boolean;
   system_updates: boolean;
+
+  // חנות/מייל וכו׳
   email_digest: boolean;
+
+  // ✅ חדש: מפגשים
+  show_shared_sessions_open: boolean;       // התראות על מפגשים שנפתחו/נוצרו
+  show_shared_sessions_scheduled: boolean;  // התראות על מפגשים מתוכננים מראש
 }
 
 const defaultPreferences: UserPreferences = {
@@ -32,16 +43,24 @@ const defaultPreferences: UserPreferences = {
   exam_reminders: true,
   study_partner_alerts: true,
   system_updates: true,
-  email_digest: false
+  email_digest: false,
+  show_shared_sessions_open: false,
+  show_shared_sessions_scheduled: false,
 };
 
 export const NotificationPreferences: React.FC<NotificationPreferencesProps> = ({ className = '' }) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
-  const [loading, setLoading] = useState(true);
+
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
+  // נשמור מצב "נוכחי בעריכה" ומצב "נשמר אחרון" כדי לאפשר ביטול
+  const [prefs, setPrefs] = useState<UserPreferences>(defaultPreferences);
+  const [lastSavedPrefs, setLastSavedPrefs] = useState<UserPreferences>(defaultPreferences);
+
+  const dirty = useMemo(() => JSON.stringify(prefs) !== JSON.stringify(lastSavedPrefs), [prefs, lastSavedPrefs]);
+
   const {
     isSupported,
     isEnabled,
@@ -50,11 +69,10 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
     status
   } = usePushNotifications();
 
-  // טעינת העדפות המשתמש
+  // טעינת העדפות
   useEffect(() => {
     const loadPreferences = async () => {
       if (!user) return;
-      
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -64,77 +82,82 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
 
         if (error) {
           console.warn('Could not load notification preferences:', error);
-        } else if (data?.notification_preferences) {
-          setPreferences({ ...defaultPreferences, ...data.notification_preferences });
         }
-      } catch (error) {
-        console.error('Error loading preferences:', error);
+
+        // מיזוג בטוח עם ברירות מחדל כדי לא לשבור אם חסרים שדות
+        const incoming = (data?.notification_preferences || {}) as Partial<UserPreferences>;
+        const merged: UserPreferences = { ...defaultPreferences, ...incoming };
+
+        setPrefs(merged);
+        setLastSavedPrefs(merged);
+      } catch (err) {
+        console.error('Error loading preferences:', err);
       } finally {
-        setLoading(false);
+        setLoaded(true);
       }
     };
-
     loadPreferences();
   }, [user]);
 
-  // שמירת העדפות
-  const savePreferences = async (newPreferences: UserPreferences) => {
+  const savePreferences = async () => {
     if (!user) return;
-    
     setSaving(true);
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ notification_preferences: newPreferences })
+        .update({ notification_preferences: prefs })
         .eq('id', user.id);
 
       if (error) throw error;
 
-      setPreferences(newPreferences);
-      toast({
-        title: 'הגדרות נשמרו',
-        description: 'העדפות ההתראות עודכנו בהצלחה'
-      });
-    } catch (error) {
-      toast({
-        title: 'שגיאה',
-        description: 'לא ניתן לשמור את ההגדרות',
-        variant: 'destructive'
-      });
+      setLastSavedPrefs(prefs);
+      toast({ title: 'הגדרות נשמרו', description: 'העדפות ההתראות עודכנו בהצלחה' });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'שגיאה', description: 'לא ניתן לשמור את ההגדרות', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
 
-  // עדכון העדפה בודדת
-  const updatePreference = async (key: keyof UserPreferences, value: boolean) => {
-    const newPreferences = { ...preferences, [key]: value };
-    await savePreferences(newPreferences);
+  const resetChanges = () => {
+    setPrefs(lastSavedPrefs);
+    toast({ title: 'בוטל', description: 'השינויים בוטלו' });
   };
 
-  // הפעלת/ביטול התראות Push
+  // עדכון ערך בודד (ללא שמירה — נשמר רק בלחיצה על "שמור")
+  const setBool = (key: keyof UserPreferences, value: boolean) => {
+    setPrefs(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Push: מבקשים הרשאה/מכבים, ועדיין לא שומרים עד שלוחצים "שמור"
   const handlePushToggle = async (enabled: boolean) => {
+    if (!isSupported) return;
+
     if (enabled && !isEnabled) {
       const granted = await requestPermission();
-      if (granted) {
-        await updatePreference('push_notifications', true);
+      if (!granted) {
+        // לא ניתן – משאירים את הערך כ־false
+        toast({ title: 'הרשאה נדחתה', description: 'לא ניתן להפעיל התראות Push ללא הרשאה', variant: 'destructive' });
+        setBool('push_notifications', false);
+        return;
       }
+      setBool('push_notifications', true);
     } else if (!enabled && isEnabled) {
       await disableNotifications();
-      await updatePreference('push_notifications', false);
+      setBool('push_notifications', false);
+    } else {
+      // אם כבר פעיל/כבוי בדפדפן – רק עדכון המתג בהעדפות
+      setBool('push_notifications', enabled);
     }
   };
 
   const getStatusBadge = () => {
     switch (status) {
-      case 'enabled':
-        return <Badge className="bg-green-100 text-green-800">פעיל</Badge>;
-      case 'denied':
-        return <Badge variant="destructive">נדחה</Badge>;
-      case 'not-supported':
-        return <Badge variant="secondary">לא נתמך</Badge>;
-      default:
-        return <Badge variant="outline">כבוי</Badge>;
+      case 'enabled': return <Badge className="bg-green-100 text-green-800">פעיל</Badge>;
+      case 'denied': return <Badge variant="destructive">נדחה</Badge>;
+      case 'not-supported': return <Badge variant="secondary">לא נתמך</Badge>;
+      default: return <Badge variant="outline">כבוי</Badge>;
     }
   };
 
@@ -149,151 +172,177 @@ export const NotificationPreferences: React.FC<NotificationPreferencesProps> = (
   }
 
   return (
-    <Card className={className} dir="rtl">
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Settings className="h-5 w-5" />
-          <span>הגדרות התראות</span>
+    <Card className={`${className}`} dir="rtl">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            הגדרות התראות
+          </span>
+
+          {/* שורת פעולות קומפקטית בדסקטופ */}
+          <div className="hidden sm:flex items-center gap-2">
+            <Button variant="outline" onClick={resetChanges} disabled={!dirty || saving}>ביטול</Button>
+            <Button onClick={savePreferences} disabled={!dirty || saving}>
+              {saving ? 'שומר…' : 'שמור'}
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* סוגי התראות */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-            <Globe className="h-4 w-4" />
-            <span>התראות באתר</span>
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="site-notifications" className="text-sm">
-                התראות כלליות באתר
-              </Label>
-              <Switch
-                id="site-notifications"
-                checked={preferences.site_notifications}
-                onCheckedChange={(checked) => updatePreference('site_notifications', checked)}
-                disabled={saving}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="assignment-reminders" className="text-sm">
-                תזכורות למטלות
-              </Label>
-              <Switch
-                id="assignment-reminders"
-                checked={preferences.assignment_reminders}
-                onCheckedChange={(checked) => updatePreference('assignment_reminders', checked)}
-                disabled={saving}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="exam-reminders" className="text-sm">
-                תזכורות לבחינות
-              </Label>
-              <Switch
-                id="exam-reminders"
-                checked={preferences.exam_reminders}
-                onCheckedChange={(checked) => updatePreference('exam_reminders', checked)}
-                disabled={saving}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="study-partner-alerts" className="text-sm">
-                התראות שותפים ללמידה
-              </Label>
-              <Switch
-                id="study-partner-alerts"
-                checked={preferences.study_partner_alerts}
-                onCheckedChange={(checked) => updatePreference('study_partner_alerts', checked)}
-                disabled={saving}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="system-updates" className="text-sm">
-                עדכוני מערכת
-              </Label>
-              <Switch
-                id="system-updates"
-                checked={preferences.system_updates}
-                onCheckedChange={(checked) => updatePreference('system_updates', checked)}
-                disabled={saving}
-              />
-            </div>
+
+      <CardContent className="space-y-8 pb-24"> {/* ריווח תחתון לפס הדביק בנייד */}
+        {/* מצב טעינה */}
+        {!loaded ? (
+          <div className="space-y-4">
+            <div className="h-5 w-40 bg-gray-200/70 rounded animate-pulse" />
+            <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
+            <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
+            <div className="h-12 w-full bg-gray-100/70 rounded animate-pulse" />
           </div>
-        </div>
+        ) : (
+          <>
+            {/* 🔔 התראות באתר */}
+            <section>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                התראות באתר
+              </h3>
 
-        <Separator />
-
-        {/* התראות Push */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-            <Smartphone className="h-4 w-4" />
-            <span>התראות Push</span>
-            {getStatusBadge()}
-          </h3>
-          
-          {!isSupported ? (
-            <p className="text-sm text-gray-500 mb-4">
-              הדפדפן שלך לא תומך בהתראות Push
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <Label htmlFor="push-notifications" className="text-sm">
-                  הפעל התראות Push
-                </Label>
-                <Switch
-                  id="push-notifications"
-                  checked={preferences.push_notifications && isEnabled}
-                  onCheckedChange={handlePushToggle}
-                  disabled={saving || !isSupported}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ToggleRow
+                  id="site-notifications"
+                  label="התראות כלליות באתר"
+                  checked={prefs.site_notifications}
+                  onChange={(v) => setBool('site_notifications', v)}
+                />
+                <ToggleRow
+                  id="assignment-reminders"
+                  label="תזכורות למטלות"
+                  checked={prefs.assignment_reminders}
+                  onChange={(v) => setBool('assignment_reminders', v)}
+                />
+                <ToggleRow
+                  id="exam-reminders"
+                  label="תזכורות לבחינות"
+                  checked={prefs.exam_reminders}
+                  onChange={(v) => setBool('exam_reminders', v)}
+                />
+                <ToggleRow
+                  id="study-partner-alerts"
+                  label="התראות שותפים ללמידה"
+                  checked={prefs.study_partner_alerts}
+                  onChange={(v) => setBool('study_partner_alerts', v)}
+                />
+                <ToggleRow
+                  id="system-updates"
+                  label="עדכוני מערכת"
+                  checked={prefs.system_updates}
+                  onChange={(v) => setBool('system_updates', v)}
                 />
               </div>
-              
-              {status === 'denied' && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-700">
-                    התראות Push נדחו. ניתן להפעיל אותן בהגדרות הדפדפן.
-                  </p>
-                </div>
+            </section>
+
+            <Separator />
+
+            {/* 👥 מפגשי לימוד */}
+            <section>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                התראות על מפגשי לימוד
+              </h3>
+              <p className="text-sm text-gray-500 mb-3">
+                אלו התראות פחות קריטיות. אפשר להפעיל רק אם זה מעניין אותך.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ToggleRow
+                  id="shared-sessions-open"
+                  label="מפגשים שנפתחו/נוצרו"
+                  checked={prefs.show_shared_sessions_open}
+                  onChange={(v) => setBool('show_shared_sessions_open', v)}
+                />
+                <ToggleRow
+                  id="shared-sessions-scheduled"
+                  label="מפגשים מתוכננים מראש"
+                  checked={prefs.show_shared_sessions_scheduled}
+                  onChange={(v) => setBool('show_shared_sessions_scheduled', v)}
+                />
+              </div>
+            </section>
+
+            <Separator />
+
+            {/* 📱 Push */}
+            <section>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Smartphone className="h-4 w-4" />
+                התראות Push {getStatusBadge()}
+              </h3>
+
+              {!isSupported ? (
+                <p className="text-sm text-gray-500">הדפדפן שלך לא תומך בהתראות Push</p>
+              ) : (
+                <>
+                  <ToggleRow
+                    id="push-notifications"
+                    label="הפעל התראות Push"
+                    checked={prefs.push_notifications && (status === 'enabled')}
+                    onChange={handlePushToggle}
+                  />
+                  {status === 'denied' && (
+                    <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                      התראות Push נדחו. ניתן להפעיל אותן דרך הגדרות הדפדפן.
+                    </div>
+                  )}
+                  {status === 'default' && (
+                    <p className="text-sm text-gray-600 mt-2">לחיצה על המתג תבקש הרשאה מהדפדפן.</p>
+                  )}
+                </>
               )}
-              
-              {status === 'default' && (
-                <p className="text-sm text-gray-600">
-                  לחץ על המתג כדי לבקש הרשאה לשליחת התראות
-                </p>
-              )}
-            </>
-          )}
-        </div>
+            </section>
 
-        <Separator />
+            <Separator />
 
-        {/* הגדרות נוספות */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4">הגדרות נוספות</h3>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="email-digest" className="text-sm">
-              סיכום שבועי במייל (בקרוב)
-            </Label>
-            <Switch
-              id="email-digest"
-              checked={preferences.email_digest}
-              onCheckedChange={(checked) => updatePreference('email_digest', checked)}
-              disabled={true} // נכבה עד להטמעה מלאה
-            />
-          </div>
-        </div>
-
-        {saving && (
-          <div className="text-center py-2">
-            <div className="inline-flex items-center space-x-2 text-sm text-gray-600">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span>שומר הגדרות...</span>
-            </div>
-          </div>
+            {/* ✉️ מייל (בקרוב) */}
+            <section>
+              <h3 className="text-lg font-semibold mb-4">הגדרות נוספות</h3>
+              <ToggleRow
+                id="email-digest"
+                label="סיכום שבועי במייל (בקרוב)"
+                checked={prefs.email_digest}
+                onChange={() => {/* השבתה עד להטמעה מלאה */}}
+                disabled
+              />
+            </section>
+          </>
         )}
       </CardContent>
+
+      {/* 🧷 פס פעולות דביק למובייל */}
+      <div className="sm:hidden sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t p-3 flex items-center justify-between z-10">
+        <Button variant="outline" className="w-[48%]" onClick={resetChanges} disabled={!dirty || saving}>
+          ביטול
+        </Button>
+        <Button className="w-[48%]" onClick={savePreferences} disabled={!dirty || saving}>
+          {saving ? 'שומר…' : 'שמור'}
+        </Button>
+      </div>
     </Card>
   );
 };
+
+/** שורת טוגל קומפקטית ונוחה למגע */
+const ToggleRow = ({
+  id, label, checked, onChange, disabled,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) => (
+  <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/30 transition">
+    <Label htmlFor={id} className="text-sm">{label}</Label>
+    <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={!!disabled} />
+  </div>
+);

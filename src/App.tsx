@@ -35,10 +35,13 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import AccessibilityButton from "@/components/AccessibilityButton";
 import NotificationOrchestrator from "@/components/notifications/NotificationOrchestrator";
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
-import { AuthProvider } from "@/contexts/AuthProvider"; // ← ייבוא נכון!
-import { AdminRoute } from "@/components/AdminRoute";   // ← הגנה על אדמין
+import { AuthProvider, useAuth } from "@/contexts/AuthProvider"; // ← נוסיף useAuth
+import { AdminRoute } from "@/components/AdminRoute";
 
-// -- ספקים נוספים --
+// ===== ENV FLAG לתחזוקה =====
+const IS_MAINTENANCE =
+  (import.meta as any).env?.VITE_MAINTENANCE_MODE === "true";
+
 export const CartContext = React.createContext({});
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = React.useState<any[]>([]);
@@ -53,8 +56,8 @@ const queryClient = new QueryClient();
 
 // -- הגנה על דשבורד למורים פרטיים בלבד --
 const TutorRoute = ({ children }: { children: React.ReactNode }) => {
-  // אפשר לייעל – אבל השארנו כבקשתך
-  const { user } = React.useContext<any>(CartContext); // אם יש לך useAuth אמיתי - ייבא אותו!
+  // שיפור: נשתמש ב-auth האמיתי, לא ב-CartContext
+  const { user } = useAuth() as any;
   const [isTutor, setIsTutor] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
@@ -78,10 +81,7 @@ const TutorRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// -- ספקים לכל החנות --
-const StoreProviders: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => (
+const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <CartProvider>
     <WishlistProvider>{children}</WishlistProvider>
   </CartProvider>
@@ -89,7 +89,8 @@ const StoreProviders: React.FC<{ children: React.ReactNode }> = ({
 
 // -- קומפוננטת תחזוקה וסיסמה --
 const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => {
-  const underMaintenance = true;
+  // במקום true קשיח – מה־ENV:
+  const underMaintenance = IS_MAINTENANCE;
   const secretPassword = "A1m2i3r4";
   const [authorized, setAuthorized] = React.useState<boolean | null>(null);
   const [password, setPassword] = React.useState("");
@@ -118,12 +119,10 @@ const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => 
       </div>
     );
   }
+
   if (underMaintenance && !authorized) {
     return (
-      <div
-        dir="rtl"
-        className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 text-center px-4"
-      >
+      <div dir="rtl" className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 text-center px-4">
         <form
           onSubmit={handleSubmit}
           className="max-w-md space-y-6 w-full bg-white dark:bg-gray-800 shadow-xl rounded-xl p-8"
@@ -150,24 +149,38 @@ const MaintenanceAndPassword = ({ children }: { children: React.ReactNode }) => 
           >
             אישור
           </button>
-          <div className="text-xs text-gray-400 mt-2">
-            לבעיות, פנה למנהל האתר
-          </div>
+          <div className="text-xs text-gray-400 mt-2">לבעיות, פנה למנהל האתר</div>
         </form>
       </div>
     );
   }
+
   return <>{children}</>;
 };
 
 // -- אין מעבר אוטומטי – Index רגיל --
 const IndexWithAdminRedirect = () => <Index />;
 
-// -- האפליקציה הראשית --
+// -- מעטפת שמחזיקה את ה-Orchestrator רק כשצריך --
+const ShellWithOrchestrator = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth() as any;
+
+  // ✅ לא מרנדרים את ה-Orchestrator אם תחזוקה פעילה
+  const shouldRunOrchestrator = !!user && !IS_MAINTENANCE;
+
+  return (
+    <>
+      {shouldRunOrchestrator ? <NotificationOrchestrator /> : null}
+      {children}
+    </>
+  );
+};
+
 const App = () => {
   useEffect(() => {
     console.log("🚦 [App] rendered");
   }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -175,59 +188,60 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <NotificationOrchestrator />
             <BrowserRouter>
               <MaintenanceAndPassword>
-                <StoreProviders>
-                  <main id="main-root" className="flex-1 min-h-[70vh]">
-                    <Routes>
-                      <Route path="/" element={<IndexWithAdminRedirect />} />
-                      <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-                      <Route path="/courses" element={<Universities />} />
-                      <Route path="/universities" element={<Universities />} />
-                      <Route path="/institution/:id" element={<Institution />} />
-                      <Route path="/course/:id" element={<Course />} />
-                      <Route path="/tutors" element={<Tutors />} />
-                      <Route path="/tutor/:id" element={<TutorProfile />} />
-                      <Route path="/tips" element={<Tips />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/reset-password" element={<ResetPassword />} />
-                      <Route path="/email-verification" element={<EmailVerificationPage />} />
-                      <Route path="/my-courses" element={<MyCourses />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/auth/callback" element={<AuthCallbackHandler />} />
-                      <Route path="/tutor-dashboard" element={<TutorRoute><TutorDashboard /></TutorRoute>} />
-                      <Route path="/store" element={<ComingSoon />} />
-                      <Route path="/wishlist" element={<ComingSoon title="רשימת המשאלות תיפתח בקרוב!" />} />
-                      <Route path="/shopping-cart" element={<ComingSoon title="העגלה תיפתח בקרוב!" />} />
-                      <Route path="/terms" element={<TermsOfUse />} />
-                      <Route path="/tutors-terms" element={<TutorTermsPage />} />
-                      <Route path="/feedback" element={<FeedbackPage />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </main>
-                  <ScrollToTopButton />
-                  <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50 flex flex-col sm:flex-row justify-center gap-2">
-                    <a
-                      href="/terms"
-                      className="underline text-blue-600 hover:text-blue-800"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      תנאי שימוש
-                    </a>
-                    <span className="mx-2 hidden sm:inline">|</span>
-                    <a
-                      href="/tutors-terms"
-                      className="underline text-green-600 hover:text-green-800"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      תנאי שימוש למורים פרטיים
-                    </a>
-                  </footer>
-                  <AccessibilityButton />
-                </StoreProviders>
+                <ShellWithOrchestrator>
+                  <StoreProviders>
+                    <main id="main-root" className="flex-1 min-h-[70vh]">
+                      <Routes>
+                        <Route path="/" element={<IndexWithAdminRedirect />} />
+                        <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+                        <Route path="/courses" element={<Universities />} />
+                        <Route path="/universities" element={<Universities />} />
+                        <Route path="/institution/:id" element={<Institution />} />
+                        <Route path="/course/:id" element={<Course />} />
+                        <Route path="/tutors" element={<Tutors />} />
+                        <Route path="/tutor/:id" element={<TutorProfile />} />
+                        <Route path="/tips" element={<Tips />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/reset-password" element={<ResetPassword />} />
+                        <Route path="/email-verification" element={<EmailVerificationPage />} />
+                        <Route path="/my-courses" element={<MyCourses />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/auth/callback" element={<AuthCallbackHandler />} />
+                        <Route path="/tutor-dashboard" element={<TutorRoute><TutorDashboard /></TutorRoute>} />
+                        <Route path="/store" element={<ComingSoon />} />
+                        <Route path="/wishlist" element={<ComingSoon title="רשימת המשאלות תיפתח בקרוב!" />} />
+                        <Route path="/shopping-cart" element={<ComingSoon title="העגלה תיפתח בקרוב!" />} />
+                        <Route path="/terms" element={<TermsOfUse />} />
+                        <Route path="/tutors-terms" element={<TutorTermsPage />} />
+                        <Route path="/feedback" element={<FeedbackPage />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </main>
+                    <ScrollToTopButton />
+                    <footer className="text-center text-xs text-gray-500 py-2 bg-gray-50 flex flex-col sm:flex-row justify-center gap-2">
+                      <a
+                        href="/terms"
+                        className="underline text-blue-600 hover:text-blue-800"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        תנאי שימוש
+                      </a>
+                      <span className="mx-2 hidden sm:inline">|</span>
+                      <a
+                        href="/tutors-terms"
+                        className="underline text-green-600 hover:text-green-800"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        תנאי שימוש למורים פרטיים
+                      </a>
+                    </footer>
+                    <AccessibilityButton />
+                  </StoreProviders>
+                </ShellWithOrchestrator>
               </MaintenanceAndPassword>
             </BrowserRouter>
           </TooltipProvider>
