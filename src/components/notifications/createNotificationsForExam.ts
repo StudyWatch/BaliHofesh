@@ -1,33 +1,44 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createNotification } from './createNotification';
 
+type Prefs = {
+  site_notifications?: boolean;     // ברירת מחדל: true
+  push_notifications?: boolean;     // ברירת מחדל: false
+  exams?: {
+    enabled?: boolean;              // ברירת מחדל: true
+    reminders?: number[];           // ברירת מחדל: [3, 1]
+  };
+} | null;
+
 type StudentProfile = {
   id: string;
-  notification_preferences: {
-    exams?: {
-      reminder_days_before?: number;
-      push?: boolean;
-      site?: boolean;
-    };
-  } | null;
+  notification_preferences: Prefs;
 };
+
+function parsePrefs(p: any): Prefs {
+  try {
+    return typeof p === 'string' ? JSON.parse(p) : p;
+  } catch {
+    return null;
+  }
+}
 
 export const createNotificationsForExam = async () => {
   const now = new Date();
   const todayISO = now.toISOString();
 
-  // שלב 1: שליפת כל הבחינות שעדיין לא עברו
+  // 1) בחינות קדימה בזמן
   const { data: exams, error } = await supabase
     .from('exam_dates')
     .select('id, course_id, exam_date, exam_session')
     .gte('exam_date', todayISO);
 
-  if (error || !exams) {
-    console.error('❌ שגיאה בטעינת בחינות:', error);
+  if (error || !exams?.length) {
+    if (error) console.error('❌ שגיאה בטעינת בחינות:', error);
     return;
   }
 
-  // שלב 2: מחיקת התראות ישנות על בחינות שכבר עברו
+  // 2) ניקוי ישנות שפגו
   await supabase
     .from('notifications')
     .delete()
@@ -38,7 +49,7 @@ export const createNotificationsForExam = async () => {
     const examDate = new Date(exam.exam_date!);
     const daysUntilExam = Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-    // שלב 3: שליפת המשתמשים בקורס
+    // 3) מי רשומים לקורס?
     const { data: users, error: uErr } = await supabase
       .from('user_course_progress')
       .select('user_id')
@@ -47,58 +58,71 @@ export const createNotificationsForExam = async () => {
     if (uErr || !users?.length) continue;
     const userIds = users.map(u => u.user_id);
 
-    // שלב 4: שליפת פרופילים
+    // 4) פרופילים + העדפות בבאלק
     const { data: profiles, error: pErr } = await supabase
       .from('profiles')
       .select('id, notification_preferences')
       .in('id', userIds);
 
-    if (pErr || !profiles) continue;
+    if (pErr || !profiles?.length) continue;
 
-    const students: StudentProfile[] = profiles.map((s: any) => {
-      let prefs = null;
-      try {
-        prefs = typeof s.notification_preferences === 'string'
-          ? JSON.parse(s.notification_preferences)
-          : s.notification_preferences;
-      } catch { prefs = null; }
+    const students: StudentProfile[] = profiles.map((s: any) => ({
+      id: s.id,
+      notification_preferences: parsePrefs(s.notification_preferences),
+    }));
 
-      return { id: s.id, notification_preferences: prefs };
-    });
-
-    // שלב 5: בדיקה למי כבר נשלחה התראה
-    const { data: existing, error: nErr } = await supabase
+    // 5) מי כבר קיבל התראה *למרחק הימים הזה* על אותה בחינה?
+    const { data: existing } = await supabase
       .from('notifications')
-      .select('user_id')
+      .select('user_id, reminder_days_before')
       .eq('exam_id', exam.id)
       .eq('type', 'exam');
 
-    const alreadyNotified = new Set(existing?.map(n => n.user_id) || []);
+    const alreadyNotified = new Set(
+      (existing || []).map(n => `${n.user_id}-${n.reminder_days_before ?? 'NA'}`)
+    );
+
     const expiresAt = new Date(examDate);
     expiresAt.setDate(expiresAt.getDate() + 1);
 
-    // שלב 6: שליחת התראות למי שצריך לפי העדפות
+    // 6) שליחה לפי העדפות החדשות
     for (const student of students) {
-      if (alreadyNotified.has(student.id)) continue;
+      const prefs = student.notification_preferences || {};
+      const examsPrefs = prefs.exams || {};
 
-      const prefs = student.notification_preferences?.exams ?? {};
-      const reminderDays = prefs.reminder_days_before ?? 3;
-      if (daysUntilExam !== reminderDays) continue;
+      // מושבת? דלג
+      if (examsPrefs.enabled === false) continue;
 
-const push = prefs.push !== false; // ברירת מחדל: כן
-      const site = prefs.site ?? true;
-      const delivery_target = push && site ? 'both' : push ? 'push' : 'site';
+      // ברירות מחדל: reminders=[3,1], site=true, push=false
+      const reminders =
+        (Array.isArray(examsPrefs.reminders) && examsPrefs.reminders.length > 0)
+          ? examsPrefs.reminders
+          : [3, 1];
+
+      if (!reminders.includes(daysUntilExam)) continue;
+
+      const wantsSite = prefs.site_notifications !== false;       // ברירת מחדל: true
+      const wantsPush = prefs.push_notifications === true;        // ברירת מחדל: false
+
+      // אין בכלל ערוץ לשלוח? דלג
+      if (!wantsSite && !wantsPush) continue;
+
+      // אל תשלח אם כבר נשלח למרחק הזה
+      if (alreadyNotified.has(`${student.id}-${daysUntilExam}`)) continue;
+
+      const delivery_target = wantsSite && wantsPush ? 'both' : wantsPush ? 'push' : 'site';
 
       await createNotification({
         user_id: student.id,
         type: 'exam',
         title: 'תזכורת לבחינה מתקרבת',
-        message: `יש לך בחינה בקורס מספר ${exam.course_id} ב-${exam.exam_session} (${exam.exam_date?.split('T')[0]}).`,
+        message: `יש לך בחינה בקורס ${exam.course_id} ב-${exam.exam_session} (${exam.exam_date?.split('T')[0]}).`,
         exam_id: exam.id,
         delivery_target,
         expires_at: expiresAt.toISOString(),
         is_critical: true,
-        push_to_phone: push,
+        push_to_phone: wantsPush,
+        reminder_days_before: daysUntilExam, // לשמירת ייחודיות בין כמה תזכורות לאותה בחינה
       });
     }
   }
