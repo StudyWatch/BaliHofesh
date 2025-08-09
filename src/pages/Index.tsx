@@ -190,11 +190,26 @@ const Index = () => {
     [unsavedCourses, collator, getLocalizedText]
   );
 
-  // קרוסלה: קודם שמורים, ואז הממוינים לפי עדיפות
-  const carouselCourses = useMemo(
-    () => [...savedCourses, ...scoredUnsaved.map((x) => x.c)].slice(0, 12),
-    [savedCourses, scoredUnsaved]
-  );
+  // ——— קרוסלה: קורסי קיץ קודם (שמורים→לא שמורים), אחר כך שאר הקורסים באותו סדר ———
+  const carouselCourses = useMemo(() => {
+    const summer = courses.filter((c: any) => isSummer(c.semester));
+    const rest   = courses.filter((c: any) => !isSummer(c.semester));
+
+    const byPrio = (a: any, b: any) => {
+      const sa = subjectWeight(detectSubject(a)) * 100 + (isPopular(a) ? 40 : 0);
+      const sb = subjectWeight(detectSubject(b)) * 100 + (isPopular(b) ? 40 : 0);
+      if (sb !== sa) return sb - sa;
+      return collator.compare(norm(getLocalizedText(a)), norm(getLocalizedText(b)));
+    };
+
+    const pack = (arr: any[]) => {
+      const saved = arr.filter((c: any) => isSaved(c.id));
+      const other = arr.filter((c: any) => !isSaved(c.id)).sort(byPrio);
+      return [...saved, ...other];
+    };
+
+    return [...pack(summer), ...pack(rest)].slice(0, 12);
+  }, [courses, savedCourseIds, collator, getLocalizedText]);
 
   // ——— חיפוש מדורג: שמורים/קיץ/תחום/קוד/שם ———
   const searchResults = useMemo(() => {
@@ -218,7 +233,7 @@ const Index = () => {
     slides: { perView: 1, spacing: 12 },
     breakpoints: {
       "(min-width: 480px)": { slides: { perView: 2, spacing: 16 } },
-      "(min-width: 768px)": { slides: { perView: 3, spacing: 22 } }, // 🖥️ דסקטופ – נשאר כפי שאהבת
+      "(min-width: 768px)": { slides: { perView: 3, spacing: 22 } }, // 🖥️ דסקטופ נשאר
       "(min-width: 1100px)": { slides: { perView: 4, spacing: 30 } },
     },
     created: () => setSliderLoaded(true),
@@ -275,8 +290,24 @@ const Index = () => {
     [coursesFilter, courses]
   );
 
-  // ——— עזר לניווט מקלדת בקרוסלה בדסקטופ ———
+  // ——— עזר לניווט מקלדת + גלילת עכבר בקרוסלה (דסקטופ בלבד) ———
   const carouselWrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (window.innerWidth < 768) return; // דסקטופ בלבד
+    const el = carouselWrapRef.current;
+    if (!el || !sliderLoaded || !instanceRef.current) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const horiz = Math.abs(e.deltaX) >= Math.abs(e.deltaY);
+      if (horiz) e.preventDefault();
+      const delta = horiz ? e.deltaX : e.deltaY;
+      if (delta > 0) instanceRef.current?.next();
+      else instanceRef.current?.prev();
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [sliderLoaded, instanceRef]);
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden relative font-[Assistant] bg-transparent" dir={dir} lang={language}>
@@ -403,12 +434,12 @@ const Index = () => {
                         >
                           <Card
                             className="
-                              card w-[95vw] xs:w-[89vw] max-w-[350px] md:w-[210px] lg:w-[240px]
+                              card w-[95vw] xs:w-[89vw] max-w-[350px] md:w-[230px] lg:w-[260px]
                               rounded-2xl bg-white/95 dark:bg-gradient-to-br dark:from-[#292346]/90 dark:to-[#3b235a]/90
                               hover:shadow-xl hover:scale-[1.04] cursor-pointer transition-all duration-300
                               shadow group flex-shrink-0 relative border-2 border-white/50 dark:border-pink-400/40 overflow-visible
                             "
-                            style={{ minHeight: 158 }} // ⭐ גובה כרטיס נעים גם במובייל
+                            style={{ minHeight: 158 }} // גובה לא משתנה
                             onClick={() => handleCourseClick(course.id)}
                           >
                             <CardHeader className="pb-2 pt-6 md:pt-4 px-5">
@@ -428,7 +459,7 @@ const Index = () => {
                                 </>
                               )}
 
-                              {/* פופולרי – עולה קצת מעל הכרטיס (לא מכסה טקסט) */}
+                              {/* פופולרי – עולה קצת מעל הכרטיס */}
                               {isPopular(course) && !isSaved(course.id) && (
                                 <span className="popular-badge">{t("home.course.popular")}</span>
                               )}

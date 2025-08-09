@@ -1,12 +1,7 @@
 // src/components/notifications/NotificationSystem.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogClose,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,10 +59,6 @@ const isLikelyMobile = () => {
     return uaIsMobile();
   }
 };
-const forcePwaBanner =
-  typeof window !== 'undefined' &&
-  (new URLSearchParams(window.location.search).get('forcePwa') === '1' ||
-    new URLSearchParams(window.location.search).get('forcePwaBanner') === '1');
 
 /* ===== אייקונים/צבעים ===== */
 const typeIcons: Record<string, React.ReactNode> = {
@@ -108,43 +99,52 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({
   const [bulkLoading, setBulkLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // PWA banner
+  // ====== PWA Install – מוצג תמיד בנייד עד לחיצת "התקנה" ======
+  const installClickedKey = 'pwa_install_clicked_v1';
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const hiddenKey = 'hide_pwa_install_banner_v3';
-  const [dismissed, setDismissed] = useState<boolean>(() => {
-    try { return localStorage.getItem(hiddenKey) === '1'; } catch { return false; }
+  const [mobile, setMobile] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+  const [installClicked, setInstallClicked] = useState<boolean>(() => {
+    try { return localStorage.getItem(installClickedKey) === '1'; } catch { return false; }
   });
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    setMobile(isLikelyMobile());
+    setStandalone(isStandalone());
+  }, [isOpen]);
 
   useEffect(() => {
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      if ((isLikelyMobile() || forcePwaBanner) && !isStandalone() && !dismissed) {
-        setShowInstallBanner(true);
-      }
+    };
+    const onInstalled = () => {
+      setInstallClicked(true);
+      try { localStorage.setItem(installClickedKey, '1'); } catch {}
+      setShowHelp(false);
     };
     window.addEventListener('beforeinstallprompt', onBip);
-    if ((isLikelyMobile() || forcePwaBanner) && !isStandalone() && !dismissed && isIOS()) {
-      setShowInstallBanner(true);
-    }
-    return () => window.removeEventListener('beforeinstallprompt', onBip);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dismissed, isOpen]);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBip);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
 
-  const handlePromptInstall = async () => {
-    try {
-      if (!deferredPrompt?.prompt) return;
-      await deferredPrompt.prompt();
+  const shouldShowInstallBar = mobile && !standalone && !installClicked;
+
+  const handleInstallClick = async () => {
+    // מסתירים (כדרישתך: "עד שלחץ על הורדה")
+    setInstallClicked(true);
+    try { localStorage.setItem(installClickedKey, '1'); } catch {}
+    if (deferredPrompt?.prompt) {
+      try { await deferredPrompt.prompt(); } catch {}
       setDeferredPrompt(null);
-      setShowInstallBanner(false);
-    } catch {}
-  };
-  const handleDismissForever = () => {
-    try { localStorage.setItem(hiddenKey, '1'); } catch {}
-    setDismissed(true);
-    setShowInstallBanner(false);
+    } else {
+      // iOS/ללא אירוע – נציג מדריך
+      setShowHelp(true);
+    }
   };
 
   /* ===== טעינת התראות ===== */
@@ -317,6 +317,7 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({
           </div>
         </div>
 
+        {/* גוף הרשימה */}
         <ScrollArea className="flex-1 w-full px-0.5">
           {loading ? (
             <div className="p-10 flex flex-col items-center text-center">
@@ -356,34 +357,91 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({
               )}
             </div>
           )}
-
-          {/* באנר התקנה לנייד + מדריך (אופציונלי) */}
-          {showInstallBanner && (
-            <>
-              <InstallPwaBanner
-                appName={appName}
-                appIconUrl={appIconUrl}
-                onInstall={handlePromptInstall}
-                onOpenHelp={() => setShowHelp((v) => !v)}
-                onDismissForever={handleDismissForever}
-                hasPrompt={!!deferredPrompt}
-              />
-              {showHelp && <HelpBlock />}
-            </>
-          )}
-
-          <div className="h-[max(8px,env(safe-area-inset-bottom))]" />
         </ScrollArea>
 
-        {/* פוטר – אפשר להסתיר במובייל אם תרצה */}
-        <div className="flex justify-end pt-3 border-t border-gray-100 dark:border-gray-800 px-4 pb-[max(14px,env(safe-area-inset-bottom))]">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="rounded-full font-bold shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            סגור
-          </Button>
+        {/* פוטר – הבאנר יושב כאן, תמיד בתחתית במובייל */}
+        <div className="border-t border-gray-100 dark:border-gray-800 px-3 sm:px-4 pt-2 pb-[max(14px,env(safe-area-inset-bottom))]">
+          {/* עזרה מעל הבאנר (ניתן לסגירה) */}
+          {shouldShowInstallBar && showHelp && (
+            <div className="md:hidden mb-2 relative rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 text-sm">
+              <button
+                onClick={() => setShowHelp(false)}
+                aria-label="סגור עזרה"
+                className="absolute left-2 top-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="font-bold mb-2 pr-1">איך מתקינים כאפליקציה ומפעילים התראות?</div>
+              {isIOS() && (
+                <ol className="list-decimal mr-5 space-y-1 text-gray-700 dark:text-gray-300">
+                  <li>פתח/י את האתר ב־Safari.</li>
+                  <li>לחצ/י על כפתור השיתוף.</li>
+                  <li>בחר/י <b>הוספה למסך הבית</b>.</li>
+                  <li>פתח/י את האפליקציה והפעל/י התראות בהגדרות.</li>
+                </ol>
+              )}
+              {isAndroid() && (
+                <ol className="list-decimal mr-5 space-y-1 text-gray-700 dark:text-gray-300">
+                  <li>ב־Chrome/Android יופיע “הוספה למסך הבית” או דרך ⋮.</li>
+                  <li>בחר/י <b>הוספה למסך הבית</b>.</li>
+                  <li>פתח/י את האפליקציה והפעל/י התראות בהגדרות.</li>
+                </ol>
+              )}
+              {!isIOS() && !isAndroid() && (
+                <div className="text-gray-700 dark:text-gray-300">
+                  ניתן להוסיף למסך הבית דרך תפריט הדפדפן ולהפעיל התראות בהגדרות.
+                </div>
+              )}
+            </div>
+          )}
+
+          {shouldShowInstallBar && (
+            <div className="md:hidden w-full rounded-xl border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/80 dark:bg-blue-950/30 shadow-sm px-3 py-2">
+              <div className="flex items-center gap-3">
+                <img
+                  src={appIconUrl}
+                  alt={appName}
+                  className="w-9 h-9 rounded-xl border border-blue-300/40 dark:border-blue-700/40 object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-blue-900 dark:text-blue-100 truncate">
+                    התקינו את {appName}
+                  </div>
+                  <div className="text-[11px] text-blue-900/70 dark:text-blue-200/80 truncate">
+                    גישה מהמסך הראשי · התראות מרוכזות · חוויית מובייל חלקה
+                  </div>
+                </div>
+                <Button
+                  onClick={handleInstallClick}
+                  className="h-9 px-3 text-xs flex items-center gap-2"
+                  title="התקן/י כאפליקציה"
+                >
+                  <DownloadCloud className="w-4 h-4" />
+                  התקנה
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="h-9 px-2"
+                  onClick={() => setShowHelp((v) => !v)}
+                  title="איך מתקינים?"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* שורת הסגירה */}
+          <div className="mt-2 flex justify-end">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="rounded-full font-bold shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              סגור
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -397,6 +455,7 @@ const NotificationItem: React.FC<{
   onDelete: (id: string) => void;
 }> = ({ notification, onMarkAsRead, onDelete }) => {
   const colorClasses = getTypeColor(notification.type);
+
   const handleClick = () => {
     if (notification.link) {
       if (notification.link.startsWith('/')) window.location.href = notification.link;
@@ -478,110 +537,6 @@ const NotificationItem: React.FC<{
         )}
       </div>
     </article>
-  );
-};
-
-/* ===== באנר התקנה לנייד ===== */
-const InstallPwaBanner: React.FC<{
-  appName: string;
-  appIconUrl: string;
-  onInstall: () => void;
-  onOpenHelp: () => void;
-  onDismissForever: () => void;
-  hasPrompt: boolean;
-}> = ({ appName, appIconUrl, onInstall, onOpenHelp, onDismissForever, hasPrompt }) => {
-  const notifPerm: NotificationPermission =
-    (typeof Notification !== 'undefined' ? Notification.permission : 'default') as NotificationPermission;
-
-  return (
-    <div className="mx-2 my-3 rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/30 p-3 shadow-sm">
-      <div className="flex items-start gap-3">
-        <img
-          src={appIconUrl}
-          alt={appName}
-          className="w-10 h-10 rounded-2xl border border-white/40 shadow-sm flex-shrink-0 object-cover"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-        />
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <div className="font-bold text-blue-900 dark:text-blue-100">התקינו את {appName} בטלפון</div>
-            <button onClick={onOpenHelp} className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40" aria-label="עוד מידע" title="עוד מידע">
-              <HelpCircle className="w-4 h-4 text-blue-700 dark:text-blue-300" />
-            </button>
-          </div>
-
-          <ul className="mt-1 text-xs text-blue-900/80 dark:text-blue-200/90 list-disc mr-5 space-y-0.5">
-            <li>התראות מרוכזות בשעות שנוחות לך</li>
-            <li>גישה מהירה מהמסך הראשי</li>
-            <li>ממשק מותאם לנייד ומעט רעש</li>
-          </ul>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {hasPrompt && (
-              <Button onClick={onInstall} className="h-8 px-3 text-sm flex items-center gap-2">
-                <DownloadCloud className="w-4 h-4" />
-                התקן/י כאפליקציה
-              </Button>
-            )}
-            {!hasPrompt && (
-              <Button onClick={onOpenHelp} variant="secondary" className="h-8 px-3 text-sm">
-                איך מתקינים?
-              </Button>
-            )}
-            {notifPerm !== 'granted' ? (
-              <Button
-                variant="outline" className="h-8 px-3 text-sm"
-                onClick={async () => {
-                  try {
-                    const res = await Notification.requestPermission();
-                    if (res === 'granted') toast.success('ההרשאה הופעלה. אפשר לקנפג התראות במסך ההעדפות.');
-                    else if (res === 'denied') toast.error('ההרשאה נדחתה בדפדפן.');
-                  } catch {}
-                }}
-              >
-                אשר/י התראות
-              </Button>
-            ) : (
-              <Button variant="outline" className="h-8 px-3 text-sm" onClick={() => { window.location.href = '/settings/notifications'; }}>
-                ניהול הרשאות
-              </Button>
-            )}
-            <Button variant="ghost" className="h-8 px-3 text-sm" onClick={onDismissForever}>אל תציג שוב</Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ===== מדריך קצר ===== */
-const HelpBlock: React.FC = () => {
-  const ios = isIOS();
-  const and = isAndroid();
-
-  return (
-    <div className="mx-2 mb-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 text-sm">
-      <div className="font-bold mb-2">איך מתקינים כאפליקציה ומפעילים התראות?</div>
-      {ios && (
-        <ol className="list-decimal mr-5 space-y-1 text-gray-700 dark:text-gray-300">
-          <li>פתח/י את האתר ב-Safari.</li>
-          <li>לחצ/י על כפתור השיתוף (מלבן עם חץ למעלה).</li>
-          <li>בחר/י <b>הוספה למסך הבית</b>.</li>
-          <li>פתח/י את האפליקציה והפעל/י הרשאות התראות בהגדרות.</li>
-        </ol>
-      )}
-      {and && (
-        <ol className="list-decimal mr-5 space-y-1 text-gray-700 dark:text-gray-300">
-          <li>ב-Chrome/Android יופיע “הוספה למסך הבית” או דרך תפריט ⋮.</li>
-          <li>בחר/י <b>הוספה למסך הבית</b>.</li>
-          <li>פתח/י את האפליקציה והפעל/י הרשאות התראות בהגדרות.</li>
-        </ol>
-      )}
-      {!ios && !and && (
-        <div className="text-gray-700 dark:text-gray-300">ניתן להוסיף למסך הבית דרך תפריט הדפדפן ולהפעיל התראות בהגדרות.</div>
-      )}
-      <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">טיפ: אם סירבת בעבר להתראות, אפשרי להפעיל מחדש בהגדרות הדפדפן/המערכת.</div>
-    </div>
   );
 };
 
